@@ -2,6 +2,7 @@ import os
 from llama_cpp import Llama
 from openai import OpenAI
 from loguru import logger
+from time import sleep
 
 token = os.environ["GITHUB_TOKEN"]
 endpoint = "https://models.github.ai/inference"
@@ -31,7 +32,16 @@ class LLM:
 
     def generate(self, messages: list[dict]) -> str:
         if isinstance(self.llm, OpenAI):
-            response = self.llm.chat.completions.create(messages=messages,temperature=0,model=self.model)
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    response = self.llm.chat.completions.create(messages=messages, temperature=0, model=self.model)
+                    break
+                except Exception as e:
+                    logger.error(f"Attempt {attempt + 1} failed: {e}")
+                    if attempt == max_retries - 1:
+                        raise
+                    sleep(3)
             return response.choices[0].message.content
         else:
             response = self.llm.create_chat_completion(messages=messages,temperature=0)
