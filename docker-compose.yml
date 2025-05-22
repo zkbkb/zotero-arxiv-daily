@@ -37,7 +37,7 @@ services:
 
     volumes:
       - ./logs:/var/log/cron  # 日志持久化
-      # - ./models:/app/models  # LLM模型缓存，如果你使用本地推理的话
+      - ./models:/app/models  # LLM模型缓存，如果你使用本地推理的话
       - /etc/localtime:/etc/localtime:ro  # 同步主机时区
 
     command: >
