@@ -1,6 +1,16 @@
+import os
 from llama_cpp import Llama
 from openai import OpenAI
 from loguru import logger
+
+token = os.environ["GITHUB_TOKEN"]
+endpoint = "https://models.github.ai/inference"
+model = "openai/gpt-4.1"
+
+client = OpenAI(
+    base_url=endpoint,
+    api_key=token,
+)
 
 GLOBAL_LLM = None
 
