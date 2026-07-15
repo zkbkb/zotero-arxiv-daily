@@ -17,10 +17,6 @@ def _uses_chinese(language: str) -> bool:
     return normalized.startswith(("zh", "chinese", "中文", "汉语", "漢語"))
 
 
-# Tiered layout: 1 lead story, then short featured items, then a quick-scan list.
-_FEATURED_COUNT = 2
-
-
 def render_bark_markdown(
     papers: list[Paper],
     brief: DailyBrief,
@@ -48,41 +44,25 @@ def render_bark_markdown(
         seen.add(highlight.index)
         selected.append((highlight, papers[highlight.index]))
 
-    lead_block = ""
-    featured: list[str] = []
-    bullets: list[str] = []
+    # Every paper is a numbered story: bold numbered headline, linked title
+    # with relevance score, then an insight paragraph. Depth (insight length)
+    # decreases with position, which the LLM prompt controls.
+    sections: list[str] = []
     for position, (highlight, paper) in enumerate(selected):
+        number = position + 1
         score = _format_score(paper.score)
         paper_link = f"[{paper.title} ({score})]({paper.url})"
         insight = (highlight.insight or paper.tldr or "").strip()
 
-        if position == 0:
-            # The push title already serves as the lead headline, so the body
-            # opens directly with the lead paper: link, then its insight.
-            lead_block = f"{paper_link}\n\n{insight}" if insight else paper_link
-        elif highlight.headline and position <= _FEATURED_COUNT:
-            block = f"**{highlight.headline}**\n\n{paper_link}"
-            if insight:
-                block += f"\n\n{insight}"
-            featured.append(block)
+        if highlight.headline:
+            block = f"**{number}. {highlight.headline}**\n\n{paper_link}"
         else:
-            hook = highlight.headline or insight
-            if hook:
-                bullets.append(f"- {hook} → {paper_link}")
-            else:
-                bullets.append(f"- {paper_link}")
+            block = f"**{number}.** {paper_link}"
+        if insight:
+            block += f"\n\n{insight}"
+        sections.append(block)
 
-    # Tiers are separated by horizontal rules; bold is reserved for featured
-    # headlines only, so the visual hierarchy stays readable in Bark.
-    tiers: list[str] = []
-    if lead_block:
-        tiers.append(lead_block)
-    if featured:
-        tiers.append("\n\n".join(featured))
-    if bullets:
-        tiers.append("\n".join(bullets))
-
-    if not tiers:
+    if not sections:
         return empty_message
 
-    return "\n\n---\n\n".join(tiers).strip()
+    return "\n\n".join(sections).strip()

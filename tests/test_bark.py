@@ -109,9 +109,9 @@ def test_render_bark_markdown_includes_brief_and_highlights():
         ],
     )
     md = render_bark_markdown(papers, brief, language="Chinese")
-    # The push title serves as the lead headline, so it is not repeated in the body.
-    assert "Can Alpha do more with less?" not in md
-    assert md.startswith("[Alpha Paper (8.8)](https://arxiv.org/abs/2026.00001)")
+    # Every paper is a numbered story with its own headline.
+    assert md.startswith("**1. Can Alpha do more with less?**")
+    assert "[Alpha Paper (8.8)](https://arxiv.org/abs/2026.00001)" in md
     assert "A clearer insight than the original TLDR." in md
     assert "推荐理由" not in md
     assert "核心内容" not in md
@@ -137,20 +137,14 @@ def test_render_bark_markdown_tiered_layout_for_many_papers():
     )
     md = render_bark_markdown(papers, brief, language="Chinese")
 
-    # Lead story: opens with the link directly; its headline is not rendered
-    # because the push title plays that role.
-    assert md.startswith("[Paper 0 (9.0)](https://example.com/0)")
-    assert "Lead headline?" not in md
+    # All items are numbered stories with their own headlines.
+    assert md.startswith("**1. Lead headline?**")
     assert "Lead insight with rich detail." in md
-    # Featured items: bold headline is the only bold usage.
-    assert "**Featured headline 1**" in md
-    assert "**Featured headline 2**" in md
-    # Tail items: quick-scan bullets, hook first, link after.
-    assert "**其余速览**" not in md
-    assert "- Quick hook 3 → [Paper 3 (6.0)](https://example.com/3)" in md
-    assert "- Quick hook 4 → [Paper 4 (5.0)](https://example.com/4)" in md
-    # Tiers are separated by horizontal rules: lead | featured | bullets.
-    assert md.count("\n\n---\n\n") == 2
+    assert "**2. Featured headline 1**" in md
+    assert "**3. Featured headline 2**" in md
+    # Tail items keep the numbered shape; the headline alone carries the hook.
+    assert "**4. Quick hook 3**\n\n[Paper 3 (6.0)](https://example.com/3)" in md
+    assert "**5. Quick hook 4**\n\n[Paper 4 (5.0)](https://example.com/4)" in md
 
 
 def test_render_bark_markdown_empty():
