@@ -72,7 +72,7 @@ def test_generate_daily_brief_prompt_prioritizes_one_concrete_insight():
     assert "Do not mention paper counts" in prompt
     assert "state that concrete insight directly" in prompt
     assert "one punchy hook sentence" in prompt
-    assert "do not label it as a recommendation or summary" in prompt
+    assert "Do not label it as a recommendation or summary" in prompt
 
 
 def test_generate_daily_brief_fallback_on_invalid_json():
