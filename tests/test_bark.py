@@ -36,6 +36,45 @@ def test_generate_daily_brief_parses_stub_json():
     assert brief.highlights[0].summary
 
 
+def test_generate_daily_brief_prompt_prioritizes_one_concrete_insight():
+    captured = {}
+
+    def create(**kwargs):
+        captured["messages"] = kwargs["messages"]
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=(
+                            '{"title":"A concrete result","brief":"Its mechanism.",'
+                            '"highlights":[{"index":0,"comment":"Specific reason",'
+                            '"summary":"Specific summary"}]}'
+                        )
+                    )
+                )
+            ]
+        )
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create),
+        )
+    )
+    papers = [make_sample_paper(title="Paper A", score=8.5, tldr="TLDR A")]
+
+    generate_daily_brief(
+        papers,
+        client,
+        {"language": "English", "generation_kwargs": {}},
+    )
+
+    prompt = "\n".join(message["content"] for message in captured["messages"])
+    assert "single most surprising" in prompt
+    assert "do not try to summarize the collection as a whole" in prompt
+    assert "Do not mention paper counts" in prompt
+    assert "state that concrete insight directly" in prompt
+
+
 def test_generate_daily_brief_fallback_on_invalid_json():
     class BrokenClient:
         chat = SimpleNamespace(

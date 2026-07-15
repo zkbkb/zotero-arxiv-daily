@@ -15,11 +15,11 @@ _BRIEF_MARKER = "experienced research editor"
 _AFFILIATION_RESPONSE = '["TsingHua University","Peking University"]'
 _TLDR_RESPONSE = "Hello! How can I assist you today?"
 _BRIEF_RESPONSE = (
-    '{"title":"Multimodal reasoning and efficient adaptation",'
-    '"brief":"Three high-signal papers stand out for your library today.",'
-    '"highlights":[{"index":0,"comment":"Closest match to your corpus.",'
+    '{"title":"Sparse routing makes multimodal reasoning cheaper without discarding evidence",'
+    '"brief":"The router activates only the experts needed for each modality while preserving cross-modal evidence alignment.",'
+    '"highlights":[{"index":0,"comment":"Shows how expert routing preserves cross-modal evidence.",'
     '"summary":"A concise summary of the first paper."},'
-    '{"index":1,"comment":"Strong follow-up idea.",'
+    '{"index":1,"comment":"Explains the efficiency trade-off behind the routing design.",'
     '"summary":"A concise summary of the second paper."}]}'
 )
 
