@@ -72,7 +72,8 @@ def test_generate_daily_brief_prompt_prioritizes_one_concrete_insight():
     assert "state that concrete insight directly" in prompt
     assert "paper-specific editorial headline" in prompt
     assert "Never invent a number" in prompt
-    assert "Each insight should answer or unpack its headline" in prompt
+    assert "the FIRST item is the lead" in prompt
+    assert "quick-scan list" in prompt
     assert "abstract: This paper explores" in prompt
 
 
@@ -108,7 +109,7 @@ def test_render_bark_markdown_includes_brief_and_highlights():
         ],
     )
     md = render_bark_markdown(papers, brief, language="Chinese")
-    assert "### 1. Can Alpha do more with less?" in md
+    assert "### Can Alpha do more with less?" in md
     assert "[Alpha Paper (8.8)](https://arxiv.org/abs/2026.00001)" in md
     assert "A clearer insight than the original TLDR." in md
     assert "推荐理由" not in md
@@ -116,6 +117,36 @@ def test_render_bark_markdown_includes_brief_and_highlights():
     assert "今日导读" not in md
     assert "PDF" not in md
     assert "Beta Paper" not in md
+
+
+def test_render_bark_markdown_tiered_layout_for_many_papers():
+    papers = [
+        make_sample_paper(title=f"Paper {i}", score=9.0 - i, url=f"https://example.com/{i}")
+        for i in range(5)
+    ]
+    brief = DailyBrief(
+        title="Push title",
+        highlights=[
+            Highlight(index=0, headline="Lead headline?", insight="Lead insight with rich detail."),
+            Highlight(index=1, headline="Featured headline 1", insight="Short insight 1."),
+            Highlight(index=2, headline="Featured headline 2", insight="Short insight 2."),
+            Highlight(index=3, headline="Quick hook 3"),
+            Highlight(index=4, headline="Quick hook 4"),
+        ],
+    )
+    md = render_bark_markdown(papers, brief, language="Chinese")
+
+    # Lead story: H3 headline + link + insight.
+    assert "### Lead headline?" in md
+    assert "Lead insight with rich detail." in md
+    # Featured items: bold headline, not H3.
+    assert "**Featured headline 1**" in md
+    assert "**Featured headline 2**" in md
+    assert "### Featured headline 1" not in md
+    # Tail items: quick-scan bullets under a small label.
+    assert "**其余速览**" in md
+    assert "- [Paper 3 (6.0)](https://example.com/3) — Quick hook 3" in md
+    assert "- [Paper 4 (5.0)](https://example.com/4) — Quick hook 4" in md
 
 
 def test_render_bark_markdown_empty():

@@ -17,6 +17,10 @@ def _uses_chinese(language: str) -> bool:
     return normalized.startswith(("zh", "chinese", "中文", "汉语", "漢語"))
 
 
+# Tiered layout: 1 lead story, then short featured items, then a quick-scan list.
+_FEATURED_COUNT = 2
+
+
 def render_bark_markdown(
     papers: list[Paper],
     brief: DailyBrief,
@@ -31,38 +35,53 @@ def render_bark_markdown(
         if chinese
         else "No papers today. Take a rest!"
     )
+    more_label = "其余速览" if chinese else "Also new"
 
-    parts: list[str] = []
     highlights = list(brief.highlights)
     if not highlights and include_all_if_no_highlights:
         highlights = [Highlight(index=i) for i in range(len(papers))]
 
-    paper_sections: list[str] = []
+    selected: list[tuple[Highlight, Paper]] = []
     seen: set[int] = set()
     for highlight in highlights:
         if highlight.index in seen or highlight.index < 0 or highlight.index >= len(papers):
             continue
         seen.add(highlight.index)
-        paper = papers[highlight.index]
-        number = len(paper_sections) + 1
+        selected.append((highlight, papers[highlight.index]))
+
+    sections: list[str] = []
+    bullets: list[str] = []
+    for position, (highlight, paper) in enumerate(selected):
         score = _format_score(paper.score)
         paper_link = f"[{paper.title} ({score})]({paper.url})"
-        lines: list[str] = []
-        if highlight.headline:
-            lines.append(f"### {number}. {highlight.headline}")
-            lines.append(paper_link)
-        else:
-            lines.append(f"### {number}. {paper_link}")
-
         insight = (highlight.insight or paper.tldr or "").strip()
-        if insight:
-            lines.append(insight)
-        paper_sections.append("\n\n".join(lines))
 
-    if paper_sections:
-        parts.extend(paper_sections)
+        if highlight.headline and position == 0:
+            # Lead story: full treatment, mirrors the push title's insight.
+            block = f"### {highlight.headline}\n\n{paper_link}"
+            if insight:
+                block += f"\n\n{insight}"
+            sections.append(block)
+        elif highlight.headline and position <= _FEATURED_COUNT:
+            block = f"**{highlight.headline}**\n\n{paper_link}"
+            if insight:
+                block += f"\n\n{insight}"
+            sections.append(block)
+        else:
+            hook = highlight.headline or insight
+            if hook:
+                bullets.append(f"- {paper_link} — {hook}")
+            else:
+                bullets.append(f"- {paper_link}")
 
-    if not parts:
+    if bullets:
+        bullet_block = "\n".join(bullets)
+        if sections:
+            sections.append(f"**{more_label}**\n\n{bullet_block}")
+        else:
+            sections.append(bullet_block)
+
+    if not sections:
         return empty_message
 
-    return "\n\n".join(parts).strip()
+    return "\n\n".join(sections).strip()
