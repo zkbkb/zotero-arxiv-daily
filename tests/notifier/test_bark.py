@@ -63,10 +63,13 @@ def test_render_markdown_body_renders_highlight_sections_and_roundup():
     assert "## 1. Why does it work?" in body
     assert "[Paper 0 (`9.0`)](https://arxiv.org/abs/2026.00000)" in body
     assert "- Because of X." in body
-    assert "其余速览" in body
-    assert "- 2. [Paper 1](https://arxiv.org/abs/2026.00001) (`8.0`) — TLDR of paper 1." in body
+    assert "### 其余速览" in body
+    assert "- **2.** [Paper 1](https://arxiv.org/abs/2026.00001) (`8.0`) — TLDR of paper 1." in body
     # highlighted papers are not repeated in the roundup
     assert "[Paper 0]" not in body.split("其余速览", 1)[1]
+    # numbers in the roundup must never appear as a bare "- N." (Bark's
+    # markdown renderer mis-parses that as a nested ordered list)
+    assert "- 2. " not in body
 
 
 def test_render_markdown_body_no_highlights_only_roundup():
@@ -74,10 +77,10 @@ def test_render_markdown_body_no_highlights_only_roundup():
     digest = Digest(title="t", intro="", highlights=[])
     body = render_markdown_body(papers, digest, max_chars=3000)
 
-    assert "##" not in body
-    assert "其余速览" in body
-    assert "- 1. [Paper 0]" in body
-    assert "- 2. [Paper 1]" in body
+    assert "## 1." not in body
+    assert "### 其余速览" in body
+    assert "- **1.** [Paper 0]" in body
+    assert "- **2.** [Paper 1]" in body
 
 
 def test_render_markdown_body_collapses_multiline_tldr_in_roundup():

@@ -59,8 +59,10 @@ def _format_highlight_block(index: int, paper: Paper, highlight) -> str:
 
 
 def _format_roundup_line(index: int, paper: Paper) -> str:
+    # The numeral is wrapped in bold (not left as bare "N.") so Bark's
+    # markdown renderer doesn't mistake "- N." for a nested ordered list.
     tldr = " ".join((paper.tldr or paper.abstract or "").split())
-    line = f"- {index}. [{paper.title}]({paper.url}){_format_score(paper)}"
+    line = f"- **{index}.** [{paper.title}]({paper.url}){_format_score(paper)}"
     if tldr:
         line += f" — {tldr}"
     return line
@@ -90,7 +92,7 @@ def render_markdown_body(papers: list[Paper], digest: Digest, max_chars: int) ->
             parts.append(intro)
         parts.extend(kept_highlights)
         if kept_roundup or len(kept_roundup) < len(roundup_lines):
-            section = "其余速览\n" + "\n".join(kept_roundup)
+            section = "### 其余速览\n" + "\n".join(kept_roundup)
             if len(kept_roundup) < len(roundup_lines):
                 section += f"\n_+{len(roundup_lines) - len(kept_roundup)} more papers not shown_"
             parts.append(section)
