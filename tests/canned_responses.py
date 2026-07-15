@@ -11,16 +11,14 @@ from zotero_arxiv_daily.protocol import CorpusPaper, Paper
 # ---------------------------------------------------------------------------
 
 _AFFILIATION_MARKER = "You are an assistant who perfectly extracts affiliations"
-_BRIEF_MARKER = "experienced research editor"
+_BRIEF_MARKER = "curious, knowledgeable friend"
 _AFFILIATION_RESPONSE = '["TsingHua University","Peking University"]'
 _TLDR_RESPONSE = "Hello! How can I assist you today?"
 _BRIEF_RESPONSE = (
-    '{"title":"Sparse routing makes multimodal reasoning cheaper without discarding evidence",'
-    '"brief":"The router activates only the experts needed for each modality while preserving cross-modal evidence alignment.",'
-    '"highlights":[{"index":0,"comment":"Shows how expert routing preserves cross-modal evidence.",'
-    '"summary":"A concise summary of the first paper."},'
-    '{"index":1,"comment":"Explains the efficiency trade-off behind the routing design.",'
-    '"summary":"A concise summary of the second paper."}]}'
+    '{"title":"Sparse routing keeps every modality from thinking at once",'
+    '"brief":"Instead of shrinking the reasoning chain, the model wakes only the experts each piece of evidence needs.",'
+    '"highlights":[{"index":0,"insight":"Sparse routing cuts compute without throwing away cross-modal clues."},'
+    '{"index":1,"insight":"The gain comes from choosing experts per modality, not making every expert smaller."}]}'
 )
 
 

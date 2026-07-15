@@ -33,9 +33,6 @@ def render_bark_markdown(
     """Build markdown content for Bark (title is sent separately)."""
     chinese = _uses_chinese(language)
     labels = {
-        "lead": "今日导读" if chinese else "Today at a glance",
-        "reason": "推荐理由" if chinese else "Why it matters",
-        "summary": "核心内容" if chinese else "In one sentence",
         "relevance": "相关度" if chinese else "Relevance",
         "paper": "论文页面" if chinese else "Paper",
         "pdf": "PDF",
@@ -44,10 +41,7 @@ def render_bark_markdown(
 
     parts: list[str] = []
     if brief.brief:
-        parts.append(
-            f"> **{labels['lead']}**\n>\n"
-            f"> {brief.brief.strip()}"
-        )
+        parts.append(f"> {brief.brief.strip()}")
 
     highlights = list(brief.highlights)
     if not highlights and include_all_if_no_highlights:
@@ -61,11 +55,9 @@ def render_bark_markdown(
         seen.add(highlight.index)
         paper = papers[highlight.index]
         lines = [f"### {len(paper_sections) + 1}. {paper.title}"]
-        if highlight.comment:
-            lines.append(f"**{labels['reason']}**\n\n{highlight.comment}")
-        summary = (highlight.summary or paper.tldr or "").strip()
-        if summary:
-            lines.append(f"**{labels['summary']}**\n\n{summary}")
+        insight = (highlight.insight or paper.tldr or "").strip()
+        if insight:
+            lines.append(insight)
 
         metadata = f"`{labels['relevance']} {_format_score(paper.score)}`"
         if paper.url and paper.pdf_url and paper.url != paper.pdf_url:

@@ -29,11 +29,10 @@ def test_generate_daily_brief_parses_stub_json():
         make_sample_paper(title="Paper B", score=7.2, tldr="TLDR B"),
     ]
     brief = generate_daily_brief(papers, make_stub_openai_client(), {"language": "English", "generation_kwargs": {}})
-    assert "multimodal" in brief.title.lower()
+    assert "sparse routing" in brief.title.lower()
     assert brief.brief
     assert len(brief.highlights) == 2
-    assert brief.highlights[0].comment
-    assert brief.highlights[0].summary
+    assert brief.highlights[0].insight
 
 
 def test_generate_daily_brief_prompt_prioritizes_one_concrete_insight():
@@ -47,8 +46,7 @@ def test_generate_daily_brief_prompt_prioritizes_one_concrete_insight():
                     message=SimpleNamespace(
                         content=(
                             '{"title":"A concrete result","brief":"Its mechanism.",'
-                            '"highlights":[{"index":0,"comment":"Specific reason",'
-                            '"summary":"Specific summary"}]}'
+                            '"highlights":[{"index":0,"insight":"Specific insight"}]}'
                         )
                     )
                 )
@@ -73,6 +71,8 @@ def test_generate_daily_brief_prompt_prioritizes_one_concrete_insight():
     assert "do not try to summarize the collection as a whole" in prompt
     assert "Do not mention paper counts" in prompt
     assert "state that concrete insight directly" in prompt
+    assert "one punchy hook sentence" in prompt
+    assert "do not label it as a recommendation or summary" in prompt
 
 
 def test_generate_daily_brief_fallback_on_invalid_json():
@@ -102,17 +102,18 @@ def test_render_bark_markdown_includes_brief_and_highlights():
         highlights=[
             Highlight(
                 index=0,
-                comment="Top pick",
-                summary="A clearer summary than the original TLDR.",
+                insight="A clearer insight than the original TLDR.",
             )
         ],
     )
     md = render_bark_markdown(papers, brief, language="Chinese")
     assert "Today's focus is Alpha." in md
-    assert "> **今日导读**" in md
+    assert "> Today's focus is Alpha." in md
     assert "### 1. Alpha Paper" in md
-    assert "**推荐理由**\n\nTop pick" in md
-    assert "**核心内容**\n\nA clearer summary than the original TLDR." in md
+    assert "A clearer insight than the original TLDR." in md
+    assert "推荐理由" not in md
+    assert "核心内容" not in md
+    assert "今日导读" not in md
     assert "`相关度 8.8`" in md
     assert "[PDF](https://example.com/a.pdf)" in md
     assert "\n\n---\n\n" in md

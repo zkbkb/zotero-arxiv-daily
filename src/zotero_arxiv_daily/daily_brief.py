@@ -17,8 +17,7 @@ from .protocol import Paper
 @dataclass
 class Highlight:
     index: int
-    comment: str = ""
-    summary: str = ""
+    insight: str = ""
 
 
 @dataclass
@@ -64,11 +63,8 @@ def _parse_daily_brief(payload: dict, paper_count: int) -> DailyBrief:
                 continue
             if index < 0 or index >= paper_count:
                 continue
-            comment = str(item.get("comment") or "").strip()
-            summary = str(item.get("summary") or "").strip()
-            highlights.append(
-                Highlight(index=index, comment=comment, summary=summary)
-            )
+            insight = str(item.get("insight") or "").strip()
+            highlights.append(Highlight(index=index, insight=insight))
     if not title:
         raise ValueError("daily brief title is empty")
     if not highlights:
@@ -99,12 +95,15 @@ def generate_daily_brief(
     papers_block = "\n\n".join(paper_lines)
 
     system = (
-        "You are an experienced research editor writing a concise mobile digest. "
-        f"Always answer in {lang}. Use a natural, restrained, informative style. "
-        "Avoid clickbait, hype, slogans, and marketing clichés. "
+        "You are a curious, knowledgeable friend sharing a fascinating research find "
+        "in a mobile message—not an academic reviewer writing a report. "
+        f"Always answer in {lang}. Sound natural, vivid, and conversational while staying accurate. "
+        "Create genuine curiosity without clickbait, hype, slogans, or marketing clichés. "
         "Every sentence must communicate a concrete research idea, result, mechanism, "
         "trade-off, or implication. Never spend words describing the digest itself, "
         "how many papers it contains, or that papers are worth reading. "
+        "Avoid stiff phrases such as 'this paper proposes', 'the study demonstrates', "
+        "'focuses on', 'framework', 'core content', and 'worthy of attention'. "
         "Keep original paper titles unchanged. "
         "Return ONLY a JSON object, no markdown fences."
     )
@@ -113,24 +112,25 @@ def generate_daily_brief(
         "first identify the single most surprising, delightful, counter-intuitive, or "
         "practically useful insight in the material. It may come from only one paper; "
         "do not try to summarize the collection as a whole. Then write:\n"
-        "- title: state that concrete insight directly in one short, compelling sentence. "
+        "- title: state that concrete insight directly in one short, curiosity-provoking sentence. "
         "Do not prefix it with 'Today', 'Daily', 'Must-read', 'Paper digest', or similar framing. "
-        "Do not merely name a broad topic or list several themes\n"
-        "- brief: at most 2 short sentences that immediately explain the mechanism, evidence, "
-        "or consequence behind the title. Do not mention paper counts, rankings, the digest, "
+        "Do not merely name a broad topic or list several themes. Aim for no more than "
+        "25 Chinese characters or 12 English words when practical\n"
+        "- brief: one punchy hook sentence that makes the reader want the explanation. "
+        "Use a concrete contrast, consequence, or unexpected mechanism; do not write an "
+        "overview or mini abstract. Do not mention paper counts, rankings, the digest, "
         "or use filler such as 'worth reading', 'stands out', or 'deserves attention'\n"
         "- highlights: a JSON array of objects "
-        "{\"index\": <int>, \"comment\": \"<one-line recommendation reason>\", "
-        "\"summary\": \"<one-sentence plain-language summary>\"} "
+        "{\"index\": <int>, \"insight\": \"<one concise, vivid takeaway>\"} "
         "for the selected papers (use the bracketed index). Put the paper that supports the "
         "title first. Prefer relevance + substance and skip weak or redundant items. "
-        "Make each comment specific about what the reader will learn; never say only that a "
-        "paper is relevant or worth reading. Keep each comment and summary concise, and do not "
-        "repeat the same information in both fields.\n\n"
+        "Each insight should tell the reader the most interesting thing they will learn in "
+        "1-2 conversational sentences. Do not label it as a recommendation or summary, and "
+        "do not repeat the hook verbatim.\n\n"
         f"Papers:\n{papers_block}\n\n"
         "Example shape:\n"
         '{"title":"...", "brief":"...", "highlights":['
-        '{"index":0,"comment":"...","summary":"..."}]}'
+        '{"index":0,"insight":"..."}]}'
     )
 
     try:
