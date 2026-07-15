@@ -26,6 +26,7 @@ jobs:
           SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
+          BARK_ENDPOINT: ${{ secrets.BARK_ENDPOINT }}
           CUSTOM_CONFIG: ${{ vars.CUSTOM_CONFIG }}
         run: |
           printf "%b\n" "$CUSTOM_CONFIG" > config/custom.yaml

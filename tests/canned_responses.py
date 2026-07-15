@@ -13,6 +13,8 @@ from zotero_arxiv_daily.protocol import CorpusPaper, Paper
 _AFFILIATION_MARKER = "You are an assistant who perfectly extracts affiliations"
 _AFFILIATION_RESPONSE = '["TsingHua University","Peking University"]'
 _TLDR_RESPONSE = "Hello! How can I assist you today?"
+_DIGEST_MARKER = "editor of a daily arXiv digest"
+_DIGEST_RESPONSE = '{"title": "今日AI大爆发", "intro": "First two papers are must-reads.", "highlights": [1, 2]}'
 
 
 def _make_chat_response(content: str) -> SimpleNamespace:
@@ -36,6 +38,8 @@ def _stub_chat_create(**kwargs):
     request_str = str(messages)
     if _AFFILIATION_MARKER in request_str:
         return _make_chat_response(_AFFILIATION_RESPONSE)
+    if _DIGEST_MARKER in request_str:
+        return _make_chat_response(_DIGEST_RESPONSE)
     return _make_chat_response(_TLDR_RESPONSE)
 
 
@@ -157,6 +161,35 @@ def make_stub_smtp(sent_emails: list):
             pass
 
     return StubSMTP
+
+
+# ---------------------------------------------------------------------------
+# requests.post stub (Bark notifier)
+# ---------------------------------------------------------------------------
+
+
+def make_stub_requests_post(calls: list, status_code: int = 200):
+    """Return a callable that records requests.post() calls.
+
+    Usage:
+        calls = []
+        monkeypatch.setattr("zotero_arxiv_daily.notifier.bark.requests.post",
+                            make_stub_requests_post(calls))
+        ...
+        assert calls[0].url == "https://api.day.app/fakekey"
+        assert "markdown" in calls[0].json
+    """
+
+    def _post(url, json=None, headers=None, timeout=None):
+        calls.append(SimpleNamespace(url=url, json=json, headers=headers, timeout=timeout))
+
+        def raise_for_status():
+            if status_code >= 400:
+                raise RuntimeError(f"HTTP {status_code}")
+
+        return SimpleNamespace(status_code=status_code, raise_for_status=raise_for_status, text="")
+
+    return _post
 
 
 # ---------------------------------------------------------------------------

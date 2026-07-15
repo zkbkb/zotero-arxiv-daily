@@ -43,9 +43,22 @@ reranker:
     model: null # The model name of the embedding model. Example: text-embedding-3-large
     batch_size: null # The batch size for embedding API requests. Adjust to match your provider's limit. Example: 64
 
+notifier:
+  bark:
+    endpoint: null # Bark device key or full push URL. Example: n3tyojo5nCXSzDTdAY5rff or https://api.day.app/n3tyojo5nCXSzDTdAY5rff
+    sound: calypso # The ringtone of the push. Example: calypso
+    group: arXiv # The Bark notification group name. Example: arXiv
+    level: active # The interruption level of the push. Example: 'active', 'timeSensitive', 'passive' or 'critical'
+    is_archive: 1 # Whether to save the push in Bark history. Example: 1
+    icon: null # An optional custom icon URL for the push (iOS 15+). Example: https://example.com/icon.png
+    click_url: null # An optional URL opened when tapping the push. Example: https://arxiv.org/list/cs.AI/recent
+    max_body_chars: 3000 # Truncate the markdown body to stay under the 4KB APNs payload limit. Example: 3000
+
 executor:
   debug: false # Whether to use debug mode. Example: true
-  send_empty: false # Whether to send an empty email even if no new papers today. Example: true
-  max_paper_num: 100 # The maximum number of the papers presented in the email. Example: 100
+  send_empty: false # Whether to send an empty notification even if no new papers today. Example: true
+  max_paper_num: 100 # The maximum number of the papers presented in the notification. Example: 100
+  min_score: null # The minimum relevance score (roughly 0-10); papers scoring below are dropped before TLDR generation and notification. Example: 6.5
   source: ??? # The sources of papers to retrieve. Example: ['arxiv','biorxiv','medrxiv']
   reranker: local # The reranker to use. Example: 'local' or 'api'
+  notifiers: [email] # The delivery channels to use. Example: ['email','bark']

@@ -67,6 +67,7 @@ Below are all the secrets you need to set. They are invisible to anyone includin
 | RECEIVER | The e-mail address that receives the paper list. | abc@outlook.com |
 | OPENAI_API_KEY | API Key when using the API to access LLMs. You can get FREE API for using advanced open source LLMs in [SiliconFlow](https://cloud.siliconflow.cn/i/b3XhBRAm). | sk-xxx |
 | OPENAI_API_BASE | API URL when using the API to access LLMs. | https://api.siliconflow.cn/v1 |
+| BARK_ENDPOINT | *(Optional)* Your [Bark](https://bark.day.app/) device key or full push URL, if you want to receive a push notification in addition to (or instead of) email. Only required when you enable the `bark` notifier below. | n3tyojo5nCXSzDTdAY5rff |
 
 Then you should also set a public variable `CUSTOM_CONFIG` for your custom configuration.
 ![vars](./assets/repo_var.png)
@@ -104,6 +105,21 @@ executor:
 Set `source.arxiv.include_cross_list: true` if you want cross-listed papers included.
 >[!NOTE]
 > `${oc.env:XXX,yyy}` means the value of the environment variable `XXX`. If the variable is not set, the default value `yyy` will be used.
+
+### 🔔 Bark push notifications (optional)
+In addition to email, you can receive a daily push notification via [Bark](https://bark.day.app/) (iOS). Each push is a single daily digest with an AI-generated, attention-grabbing title, a short editor's note naming the papers most worth reading (marked with ⭐ in the list below), and the full paper list rendered as markdown.
+
+To enable it, set the `BARK_ENDPOINT` secret (see the table above), then add `bark` to `executor.notifiers` in your `CUSTOM_CONFIG`:
+```yaml
+notifier:
+  bark:
+    endpoint: ${oc.env:BARK_ENDPOINT,null}
+
+executor:
+  notifiers: [email, bark] # Or just [bark] if you don't want email at all.
+  min_score: 6.0 # Optional: drop papers scoring below this relevance threshold (roughly 0-10) before generating TLDRs and notifications.
+```
+See the `notifier.bark` section below for all available options (sound, group, notification level, icon, click-through URL, etc.).
 
 Here is the full configuration, `???` means the value must be filled in:
 ```yaml
@@ -151,12 +167,25 @@ reranker:
     model: null # The model name of the embedding model. Example: text-embedding-3-large
     batch_size: null # The batch size for embedding API requests. Adjust to match your provider's limit. Example: 64
 
+notifier:
+  bark:
+    endpoint: null # Bark device key or full push URL. Example: n3tyojo5nCXSzDTdAY5rff or https://api.day.app/n3tyojo5nCXSzDTdAY5rff
+    sound: calypso # The ringtone of the push. Example: calypso
+    group: arXiv # The Bark notification group name. Example: arXiv
+    level: active # The interruption level of the push. Example: 'active', 'timeSensitive', 'passive' or 'critical'
+    is_archive: 1 # Whether to save the push in Bark history. Example: 1
+    icon: null # An optional custom icon URL for the push (iOS 15+). Example: https://example.com/icon.png
+    click_url: null # An optional URL opened when tapping the push. Example: https://arxiv.org/list/cs.AI/recent
+    max_body_chars: 3000 # Truncate the markdown body to stay under the 4KB APNs payload limit. Example: 3000
+
 executor:
   debug: false # Whether to use debug mode. Example: true
-  send_empty: false # Whether to send an empty email even if no new papers today. Example: true
-  max_paper_num: 100 # The maximum number of the papers presented in the email. Example: 100
+  send_empty: false # Whether to send an empty notification even if no new papers today. Example: true
+  max_paper_num: 100 # The maximum number of the papers presented in the notification. Example: 100
+  min_score: null # The minimum relevance score (roughly 0-10); papers scoring below are dropped before TLDR generation and notification. Example: 6.5
   source: ??? # The sources of papers to retrieve. Example: ['arxiv','biorxiv','medrxiv']
   reranker: local # The reranker to use. Example: 'local' or 'api'
+  notifiers: [email] # The delivery channels to use. Example: ['email','bark']
 ```
 
 That's all! Now you can test the workflow by manually triggering it:

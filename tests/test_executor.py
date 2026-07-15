@@ -281,3 +281,162 @@ def test_run_no_papers_send_empty_true(config, monkeypatch):
     assert len(sent) == 1, "Email should be sent even with no papers when send_empty=true"
     _, _, body = sent[0]
     assert "text/html" in body
+
+
+# ---------------------------------------------------------------------------
+# E2E: Executor.run() with notifier plugins (email + bark)
+# ---------------------------------------------------------------------------
+
+
+def _stub_common_pipeline(config, monkeypatch, retrieved_papers):
+    """Wire up Zotero/OpenAI/retriever stubs shared by the notifier E2E tests."""
+    from tests.canned_responses import make_stub_openai_client, make_stub_zotero_client
+
+    stub_zot = make_stub_zotero_client()
+    monkeypatch.setattr("zotero_arxiv_daily.executor.zotero.Zotero", lambda *a, **kw: stub_zot)
+
+    stub_client = make_stub_openai_client()
+    monkeypatch.setattr("zotero_arxiv_daily.executor.OpenAI", lambda **kw: stub_client)
+    monkeypatch.setattr("zotero_arxiv_daily.reranker.api.OpenAI", lambda **kw: stub_client)
+
+    import zotero_arxiv_daily.retriever.arxiv_retriever  # noqa: F401
+
+    from zotero_arxiv_daily.retriever.base import registered_retrievers
+
+    monkeypatch.setattr(
+        registered_retrievers["arxiv"],
+        "retrieve_papers",
+        lambda self: retrieved_papers,
+    )
+    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
+
+
+def test_run_end_to_end_with_email_and_bark(config, monkeypatch):
+    """Both notifiers fire: one email sent, one Bark POST made."""
+    import smtplib
+
+    from omegaconf import open_dict
+
+    from tests.canned_responses import make_sample_paper, make_stub_requests_post, make_stub_smtp
+
+    with open_dict(config):
+        config.executor.source = ["arxiv"]
+        config.executor.reranker = "api"
+        config.executor.send_empty = False
+        config.executor.notifiers = ["email", "bark"]
+        config.notifier.bark.endpoint = "fakekey"
+
+    _stub_common_pipeline(
+        config,
+        monkeypatch,
+        [make_sample_paper(title="E2E Paper 1"), make_sample_paper(title="E2E Paper 2")],
+    )
+
+    sent = []
+    monkeypatch.setattr(smtplib, "SMTP", make_stub_smtp(sent))
+
+    bark_calls = []
+    monkeypatch.setattr(
+        "zotero_arxiv_daily.notifier.bark.requests.post",
+        make_stub_requests_post(bark_calls),
+    )
+
+    executor = Executor(config)
+    executor.run()
+
+    assert len(sent) == 1, "Email should have been sent"
+    assert len(bark_calls) == 1, "Bark push should have been sent"
+    assert bark_calls[0].url == "https://api.day.app/fakekey"
+    assert "markdown" in bark_calls[0].json
+
+
+def test_run_min_score_filters_below_threshold_papers(config, monkeypatch):
+    """Papers scoring below min_score are dropped before TLDR/notification."""
+    from omegaconf import open_dict
+
+    from tests.canned_responses import make_sample_paper, make_stub_requests_post
+
+    with open_dict(config):
+        config.executor.source = ["arxiv"]
+        config.executor.reranker = "api"
+        config.executor.send_empty = False
+        config.executor.notifiers = ["bark"]
+        config.executor.min_score = 10.5  # stub embeddings always score exactly 10.0
+        config.notifier.bark.endpoint = "fakekey"
+
+    _stub_common_pipeline(
+        config,
+        monkeypatch,
+        [make_sample_paper(title="Below Threshold")],
+    )
+
+    bark_calls = []
+    monkeypatch.setattr(
+        "zotero_arxiv_daily.notifier.bark.requests.post",
+        make_stub_requests_post(bark_calls),
+    )
+
+    executor = Executor(config)
+    executor.run()
+
+    assert len(bark_calls) == 0, "No push should be sent once every paper is filtered out"
+
+
+def test_run_notifier_failure_is_isolated(config, monkeypatch):
+    """A failing notifier does not prevent other notifiers from running."""
+    import smtplib
+
+    from omegaconf import open_dict
+
+    from tests.canned_responses import make_sample_paper, make_stub_smtp
+
+    with open_dict(config):
+        config.executor.source = ["arxiv"]
+        config.executor.reranker = "api"
+        config.executor.send_empty = False
+        config.executor.notifiers = ["bark", "email"]
+        config.notifier.bark.endpoint = "fakekey"
+
+    _stub_common_pipeline(config, monkeypatch, [make_sample_paper(title="E2E Paper 1")])
+
+    sent = []
+    monkeypatch.setattr(smtplib, "SMTP", make_stub_smtp(sent))
+
+    def _raise_post(*args, **kwargs):
+        raise ConnectionError("network is unreachable")
+
+    monkeypatch.setattr("zotero_arxiv_daily.notifier.bark.requests.post", _raise_post)
+
+    executor = Executor(config)
+    executor.run()
+
+    assert len(sent) == 1, "Email should still be sent when the bark notifier fails"
+
+
+def test_run_bark_send_empty_true_sends_minimal_push(config, monkeypatch):
+    """With no papers and send_empty=true, bark sends a minimal empty-day push."""
+    from omegaconf import open_dict
+
+    from tests.canned_responses import make_stub_requests_post
+
+    with open_dict(config):
+        config.executor.source = ["arxiv"]
+        config.executor.reranker = "api"
+        config.executor.send_empty = True
+        config.executor.notifiers = ["bark"]
+        config.notifier.bark.endpoint = "fakekey"
+
+    _stub_common_pipeline(config, monkeypatch, [])
+
+    bark_calls = []
+    monkeypatch.setattr(
+        "zotero_arxiv_daily.notifier.bark.requests.post",
+        make_stub_requests_post(bark_calls),
+    )
+
+    executor = Executor(config)
+    executor.run()
+
+    assert len(bark_calls) == 1
+    payload = bark_calls[0].json
+    assert "markdown" not in payload

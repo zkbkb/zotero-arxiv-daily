@@ -7,8 +7,8 @@ from .protocol import CorpusPaper
 import random
 from datetime import datetime
 from .reranker import get_reranker_cls
-from .construct_email import render_email
-from .utils import send_email
+from .notifier import get_notifier_cls
+from .digest import generate_digest
 from openai import OpenAI
 from tqdm import tqdm
 
@@ -38,6 +38,7 @@ class Executor:
             source: get_retriever_cls(source)(config) for source in config.executor.source
         }
         self.reranker = get_reranker_cls(config.executor.reranker)(config)
+        self.notifiers = [get_notifier_cls(name)(config) for name in config.executor.notifiers]
         self.openai_client = OpenAI(api_key=config.llm.api.key, base_url=config.llm.api.base_url)
     def fetch_zotero_corpus(self) -> list[CorpusPaper]:
         logger.info("Fetching zotero corpus")
@@ -111,14 +112,27 @@ class Executor:
             logger.info("Reranking papers...")
             reranked_papers = self.reranker.rerank(all_papers, corpus)
             reranked_papers = reranked_papers[:self.config.executor.max_paper_num]
+            min_score = self.config.executor.min_score
+            if min_score is not None:
+                num_before = len(reranked_papers)
+                reranked_papers = [p for p in reranked_papers if p.score is not None and p.score >= min_score]
+                logger.info(f"Filtered out {num_before - len(reranked_papers)} papers below min_score {min_score}")
+        if len(reranked_papers) == 0 and not self.config.executor.send_empty:
+            logger.info("No new papers found. No notification will be sent.")
+            return
+        if len(reranked_papers) > 0:
             logger.info("Generating TLDR and affiliations...")
             for p in tqdm(reranked_papers):
                 p.generate_tldr(self.openai_client, self.config.llm)
                 p.generate_affiliations(self.openai_client, self.config.llm)
-        elif not self.config.executor.send_empty:
-            logger.info("No new papers found. No email will be sent.")
-            return
-        logger.info("Sending email...")
-        email_content = render_email(reranked_papers)
-        send_email(self.config, email_content)
-        logger.info("Email sent successfully")
+        digest = None
+        if any(n.needs_digest for n in self.notifiers):
+            logger.info("Generating digest...")
+            digest = generate_digest(reranked_papers, self.openai_client, self.config.llm)
+        for notifier in self.notifiers:
+            try:
+                logger.info(f"Sending notification via {notifier.name}...")
+                notifier.notify(reranked_papers, digest)
+                logger.info(f"{notifier.name} notification sent successfully")
+            except Exception as e:
+                logger.error(f"Failed to send notification via {notifier.name}: {e}")
