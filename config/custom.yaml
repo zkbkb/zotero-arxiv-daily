@@ -24,3 +24,8 @@ source:
 executor:
   debug: ${oc.env:DEBUG,null}
   source: ['arxiv']
+
+bark:
+  enabled: ${oc.env:BARK_ENABLED,false}
+  device_key: ${oc.env:BARK_KEY,null}
+  server: ${oc.env:BARK_SERVER,https://api.day.app}

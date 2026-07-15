@@ -9,7 +9,8 @@ from email.mime.text import MIMEText
 from email.utils import parseaddr, formataddr
 from loguru import logger
 import datetime
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
+import requests
 import pymupdf
 import pymupdf.layout
 pymupdf.TOOLS.mupdf_display_errors(False)
@@ -169,3 +170,55 @@ def send_email(config:DictConfig, html:str):
     server.login(sender, password)
     server.sendmail(sender, [receiver], msg.as_string())
     server.quit()
+
+
+def _as_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def is_bark_enabled(config: DictConfig) -> bool:
+    """Return True when Bark is explicitly enabled and a device key is configured."""
+    if not OmegaConf.select(config, "bark"):
+        return False
+    device_key = OmegaConf.select(config, "bark.device_key")
+    if device_key is None:
+        return False
+    device_key = str(device_key).strip()
+    if not device_key or device_key.lower() in {"null", "none"}:
+        return False
+    return _as_bool(OmegaConf.select(config, "bark.enabled", default=False))
+
+
+def send_bark(config: DictConfig, title: str, markdown: str) -> None:
+    """Push a Bark notification with title + markdown body."""
+    device_key = str(config.bark.device_key).strip()
+    server = str(OmegaConf.select(config, "bark.server", default="https://api.day.app") or "https://api.day.app")
+    server = server.rstrip("/")
+    group = OmegaConf.select(config, "bark.group", default=None)
+
+    payload = {
+        "title": title,
+        "markdown": markdown,
+        # Bark ignores body when markdown is set; keep a plain fallback for older servers.
+        "body": markdown,
+    }
+    if group:
+        payload["group"] = str(group)
+
+    url = f"{server}/{device_key}"
+    response = requests.post(url, json=payload, timeout=30)
+    response.raise_for_status()
+    try:
+        data = response.json()
+    except ValueError:
+        data = None
+    if isinstance(data, dict) and data.get("code") not in (None, 200, 0):
+        raise RuntimeError(f"Bark API returned error: {data}")

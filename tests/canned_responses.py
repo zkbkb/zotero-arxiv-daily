@@ -11,8 +11,15 @@ from zotero_arxiv_daily.protocol import CorpusPaper, Paper
 # ---------------------------------------------------------------------------
 
 _AFFILIATION_MARKER = "You are an assistant who perfectly extracts affiliations"
+_BRIEF_MARKER = "catchy mobile push-notification titles"
 _AFFILIATION_RESPONSE = '["TsingHua University","Peking University"]'
 _TLDR_RESPONSE = "Hello! How can I assist you today?"
+_BRIEF_RESPONSE = (
+    '{"title":"Todays must-reads in multimodal reasoning",'
+    '"brief":"Three high-signal papers stand out for your library today.",'
+    '"highlights":[{"index":0,"comment":"Closest match to your corpus."},'
+    '{"index":1,"comment":"Strong follow-up idea."}]}'
+)
 
 
 def _make_chat_response(content: str) -> SimpleNamespace:
@@ -36,6 +43,8 @@ def _stub_chat_create(**kwargs):
     request_str = str(messages)
     if _AFFILIATION_MARKER in request_str:
         return _make_chat_response(_AFFILIATION_RESPONSE)
+    if _BRIEF_MARKER in request_str:
+        return _make_chat_response(_BRIEF_RESPONSE)
     return _make_chat_response(_TLDR_RESPONSE)
 
 

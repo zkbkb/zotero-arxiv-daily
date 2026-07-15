@@ -49,3 +49,11 @@ executor:
   max_paper_num: 100 # The maximum number of the papers presented in the email. Example: 100
   source: ??? # The sources of papers to retrieve. Example: ['arxiv','biorxiv','medrxiv']
   reranker: local # The reranker to use. Example: 'local' or 'api'
+
+bark:
+  enabled: false # Whether to also push a Bark notification after TLDR generation. Independent from email.
+  device_key: null # Bark device key. Example: abcdefghijklmn
+  server: https://api.day.app # Bark server base URL. Example: https://api.day.app
+  group: arxiv-daily # Bark notification group name.
+  max_paper_num: 10 # Max papers included in the Bark markdown body. Does not affect email max_paper_num.
+  send_empty: false # Whether to send a Bark push when there are no papers today.

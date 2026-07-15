@@ -209,6 +209,174 @@ def test_run_end_to_end(config, monkeypatch):
     assert "text/html" in email_body
 
 
+def test_run_with_bark_enabled_sends_bark_and_email(config, monkeypatch):
+    """Bark and email are independent: both fire after TLDR when Bark is configured."""
+    import smtplib
+
+    from omegaconf import open_dict
+
+    from tests.canned_responses import (
+        make_sample_paper,
+        make_stub_openai_client,
+        make_stub_smtp,
+        make_stub_zotero_client,
+    )
+
+    with open_dict(config):
+        config.executor.source = ["arxiv"]
+        config.executor.reranker = "api"
+        config.executor.send_empty = False
+        config.bark.enabled = True
+        config.bark.device_key = "test-device-key"
+        config.bark.server = "https://api.day.app"
+        config.bark.group = "arxiv-daily"
+        config.bark.max_paper_num = 5
+
+    stub_zot = make_stub_zotero_client()
+    monkeypatch.setattr("zotero_arxiv_daily.executor.zotero.Zotero", lambda *a, **kw: stub_zot)
+
+    stub_client = make_stub_openai_client()
+    monkeypatch.setattr("zotero_arxiv_daily.executor.OpenAI", lambda **kw: stub_client)
+    monkeypatch.setattr("zotero_arxiv_daily.reranker.api.OpenAI", lambda **kw: stub_client)
+
+    retrieved = [
+        make_sample_paper(title="Bark Paper 1", score=None),
+        make_sample_paper(title="Bark Paper 2", score=None),
+    ]
+
+    import zotero_arxiv_daily.retriever.arxiv_retriever  # noqa: F401
+    from zotero_arxiv_daily.retriever.base import registered_retrievers
+
+    monkeypatch.setattr(registered_retrievers["arxiv"], "retrieve_papers", lambda self: retrieved)
+
+    sent_emails = []
+    monkeypatch.setattr(smtplib, "SMTP", make_stub_smtp(sent_emails))
+    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
+
+    bark_calls = []
+
+    class StubResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"code": 200}
+
+    def fake_post(url, json=None, timeout=None):
+        bark_calls.append({"url": url, "json": json})
+        return StubResponse()
+
+    monkeypatch.setattr("zotero_arxiv_daily.utils.requests.post", fake_post)
+
+    executor = Executor(config)
+    executor.run()
+
+    assert len(sent_emails) == 1
+    assert len(bark_calls) == 1
+    assert bark_calls[0]["url"] == "https://api.day.app/test-device-key"
+    assert bark_calls[0]["json"]["title"]
+    assert "markdown" in bark_calls[0]["json"]
+    assert "Bark Paper" in bark_calls[0]["json"]["markdown"]
+
+
+def test_run_bark_failure_still_sends_email(config, monkeypatch):
+    """Bark errors must not block the email channel."""
+    import smtplib
+
+    from omegaconf import open_dict
+
+    from tests.canned_responses import (
+        make_sample_paper,
+        make_stub_openai_client,
+        make_stub_smtp,
+        make_stub_zotero_client,
+    )
+
+    with open_dict(config):
+        config.executor.source = ["arxiv"]
+        config.executor.reranker = "api"
+        config.bark.enabled = True
+        config.bark.device_key = "bad-key"
+
+    stub_zot = make_stub_zotero_client()
+    monkeypatch.setattr("zotero_arxiv_daily.executor.zotero.Zotero", lambda *a, **kw: stub_zot)
+    stub_client = make_stub_openai_client()
+    monkeypatch.setattr("zotero_arxiv_daily.executor.OpenAI", lambda **kw: stub_client)
+    monkeypatch.setattr("zotero_arxiv_daily.reranker.api.OpenAI", lambda **kw: stub_client)
+
+    import zotero_arxiv_daily.retriever.arxiv_retriever  # noqa: F401
+    from zotero_arxiv_daily.retriever.base import registered_retrievers
+
+    monkeypatch.setattr(
+        registered_retrievers["arxiv"],
+        "retrieve_papers",
+        lambda self: [make_sample_paper(title="Keep Email")],
+    )
+
+    sent_emails = []
+    monkeypatch.setattr(smtplib, "SMTP", make_stub_smtp(sent_emails))
+    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("bark down")
+
+    monkeypatch.setattr("zotero_arxiv_daily.utils.requests.post", boom)
+
+    executor = Executor(config)
+    executor.run()
+
+    assert len(sent_emails) == 1
+
+
+def test_run_bark_disabled_skips_http(config, monkeypatch):
+    """When Bark is not enabled, no Bark HTTP call is made and email still sends."""
+    import smtplib
+
+    from omegaconf import open_dict
+
+    from tests.canned_responses import (
+        make_sample_paper,
+        make_stub_openai_client,
+        make_stub_smtp,
+        make_stub_zotero_client,
+    )
+
+    with open_dict(config):
+        config.executor.source = ["arxiv"]
+        config.executor.reranker = "api"
+        config.bark.enabled = False
+        config.bark.device_key = "unused"
+
+    stub_zot = make_stub_zotero_client()
+    monkeypatch.setattr("zotero_arxiv_daily.executor.zotero.Zotero", lambda *a, **kw: stub_zot)
+    stub_client = make_stub_openai_client()
+    monkeypatch.setattr("zotero_arxiv_daily.executor.OpenAI", lambda **kw: stub_client)
+    monkeypatch.setattr("zotero_arxiv_daily.reranker.api.OpenAI", lambda **kw: stub_client)
+
+    import zotero_arxiv_daily.retriever.arxiv_retriever  # noqa: F401
+    from zotero_arxiv_daily.retriever.base import registered_retrievers
+
+    monkeypatch.setattr(
+        registered_retrievers["arxiv"],
+        "retrieve_papers",
+        lambda self: [make_sample_paper(title="No Bark")],
+    )
+
+    sent_emails = []
+    monkeypatch.setattr(smtplib, "SMTP", make_stub_smtp(sent_emails))
+    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("Bark HTTP should not be called when disabled")
+
+    monkeypatch.setattr("zotero_arxiv_daily.utils.requests.post", fail_if_called)
+
+    executor = Executor(config)
+    executor.run()
+
+    assert len(sent_emails) == 1
+
+
 def test_run_no_papers_send_empty_false(config, monkeypatch):
     """When no papers are found and send_empty=false, no email is sent."""
     import smtplib
