@@ -17,13 +17,13 @@ from .protocol import Paper
 @dataclass
 class Highlight:
     index: int
+    headline: str = ""
     insight: str = ""
 
 
 @dataclass
 class DailyBrief:
     title: str
-    brief: str
     highlights: list[Highlight] = field(default_factory=list)
 
 
@@ -32,7 +32,6 @@ def fallback_daily_brief(papers: list[Paper], today: str | None = None) -> Daily
     highlights = [Highlight(index=i) for i in range(len(papers))]
     return DailyBrief(
         title=f"Daily arXiv {date_str}",
-        brief="",
         highlights=highlights,
     )
 
@@ -50,7 +49,6 @@ def _extract_json_object(text: str) -> dict:
 
 def _parse_daily_brief(payload: dict, paper_count: int) -> DailyBrief:
     title = str(payload.get("title") or "").strip()
-    brief = str(payload.get("brief") or "").strip()
     raw_highlights = payload.get("highlights") or []
     highlights: list[Highlight] = []
     if isinstance(raw_highlights, list):
@@ -63,13 +61,16 @@ def _parse_daily_brief(payload: dict, paper_count: int) -> DailyBrief:
                 continue
             if index < 0 or index >= paper_count:
                 continue
+            headline = str(item.get("headline") or "").strip()
             insight = str(item.get("insight") or "").strip()
-            highlights.append(Highlight(index=index, insight=insight))
+            highlights.append(
+                Highlight(index=index, headline=headline, insight=insight)
+            )
     if not title:
         raise ValueError("daily brief title is empty")
     if not highlights:
         highlights = [Highlight(index=i) for i in range(paper_count)]
-    return DailyBrief(title=title, brief=brief, highlights=highlights)
+    return DailyBrief(title=title, highlights=highlights)
 
 
 def generate_daily_brief(
@@ -87,10 +88,12 @@ def generate_daily_brief(
     for i, paper in enumerate(papers):
         score = round(paper.score, 2) if paper.score is not None else "Unknown"
         tldr = (paper.tldr or paper.abstract or "").strip()
+        abstract = (paper.abstract or "").strip()[:2000]
         paper_lines.append(
             f"[{i}] score={score}\n"
             f"title: {paper.title}\n"
-            f"tldr: {tldr}"
+            f"tldr: {tldr}\n"
+            f"abstract: {abstract}"
         )
     papers_block = "\n\n".join(paper_lines)
 
@@ -105,6 +108,8 @@ def generate_daily_brief(
         "Avoid stiff phrases such as 'this paper proposes', 'the study demonstrates', "
         "'focuses on', 'framework', 'core content', and 'worthy of attention'. "
         "Keep original paper titles unchanged. "
+        "Never invent a number, benchmark result, method name, or comparison that is not "
+        "explicitly supported by the supplied title, TLDR, or abstract. "
         "Return ONLY a JSON object, no markdown fences."
     )
     user = (
@@ -116,21 +121,21 @@ def generate_daily_brief(
         "Do not prefix it with 'Today', 'Daily', 'Must-read', 'Paper digest', or similar framing. "
         "Do not merely name a broad topic or list several themes. Aim for no more than "
         "25 Chinese characters or 12 English words when practical\n"
-        "- brief: one punchy hook sentence that makes the reader want the explanation. "
-        "Use a concrete contrast, consequence, or unexpected mechanism; do not write an "
-        "overview or mini abstract. Do not mention paper counts, rankings, the digest, "
-        "or use filler such as 'worth reading', 'stands out', or 'deserves attention'\n"
         "- highlights: a JSON array of objects "
-        "{\"index\": <int>, \"insight\": \"<one concise, vivid takeaway>\"} "
+        "{\"index\": <int>, \"headline\": \"<paper-specific editorial headline>\", "
+        "\"insight\": \"<one concise, vivid takeaway>\"} "
         "for the selected papers (use the bracketed index). Put the paper that supports the "
         "title first. Prefer relevance + substance and skip weak or redundant items. "
-        "Each insight should tell the reader the most interesting thing they will learn in "
-        "1-2 conversational sentences. Do not label it as a recommendation or summary, and "
-        "do not repeat the hook verbatim.\n\n"
+        "Write each headline as a concrete tension, question, unexpected result, or vivid "
+        "comparison—not the original academic title and not a generic topic label. "
+        "Each insight should answer or unpack its headline in 1-2 conversational sentences. "
+        "Prefer specific methods, numbers, and outcomes when they are present in the input. "
+        "Do not label the text as a recommendation or summary, and do not repeat the push "
+        "title verbatim.\n\n"
         f"Papers:\n{papers_block}\n\n"
         "Example shape:\n"
-        '{"title":"...", "brief":"...", "highlights":['
-        '{"index":0,"insight":"..."}]}'
+        '{"title":"...", "highlights":['
+        '{"index":0,"headline":"...","insight":"..."}]}'
     )
 
     try:

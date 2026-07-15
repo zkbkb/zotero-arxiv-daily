@@ -19,7 +19,6 @@ def test_fallback_daily_brief_uses_date_title():
     papers = [make_sample_paper(title="A"), make_sample_paper(title="B")]
     brief = fallback_daily_brief(papers, today="2026/07/15")
     assert brief.title == "Daily arXiv 2026/07/15"
-    assert brief.brief == ""
     assert [h.index for h in brief.highlights] == [0, 1]
 
 
@@ -30,8 +29,8 @@ def test_generate_daily_brief_parses_stub_json():
     ]
     brief = generate_daily_brief(papers, make_stub_openai_client(), {"language": "English", "generation_kwargs": {}})
     assert "sparse routing" in brief.title.lower()
-    assert brief.brief
     assert len(brief.highlights) == 2
+    assert brief.highlights[0].headline
     assert brief.highlights[0].insight
 
 
@@ -45,8 +44,8 @@ def test_generate_daily_brief_prompt_prioritizes_one_concrete_insight():
                 SimpleNamespace(
                     message=SimpleNamespace(
                         content=(
-                            '{"title":"A concrete result","brief":"Its mechanism.",'
-                            '"highlights":[{"index":0,"insight":"Specific insight"}]}'
+                            '{"title":"A concrete result","highlights":[{"index":0,'
+                            '"headline":"A concrete question?","insight":"Specific insight"}]}'
                         )
                     )
                 )
@@ -71,8 +70,10 @@ def test_generate_daily_brief_prompt_prioritizes_one_concrete_insight():
     assert "do not try to summarize the collection as a whole" in prompt
     assert "Do not mention paper counts" in prompt
     assert "state that concrete insight directly" in prompt
-    assert "one punchy hook sentence" in prompt
-    assert "Do not label it as a recommendation or summary" in prompt
+    assert "paper-specific editorial headline" in prompt
+    assert "Never invent a number" in prompt
+    assert "Each insight should answer or unpack its headline" in prompt
+    assert "abstract: This paper explores" in prompt
 
 
 def test_generate_daily_brief_fallback_on_invalid_json():
@@ -98,30 +99,27 @@ def test_render_bark_markdown_includes_brief_and_highlights():
     ]
     brief = DailyBrief(
         title="Catchy Title",
-        brief="Today's focus is Alpha.",
         highlights=[
             Highlight(
                 index=0,
+                headline="Can Alpha do more with less?",
                 insight="A clearer insight than the original TLDR.",
             )
         ],
     )
     md = render_bark_markdown(papers, brief, language="Chinese")
-    assert "Today's focus is Alpha." in md
-    assert "> Today's focus is Alpha." in md
-    assert "### 1. Alpha Paper" in md
+    assert "### 1. Can Alpha do more with less?" in md
+    assert "[Alpha Paper (8.8)](https://arxiv.org/abs/2026.00001)" in md
     assert "A clearer insight than the original TLDR." in md
     assert "推荐理由" not in md
     assert "核心内容" not in md
     assert "今日导读" not in md
-    assert "`相关度 8.8`" in md
-    assert "[PDF](https://example.com/a.pdf)" in md
-    assert "\n\n---\n\n" in md
+    assert "PDF" not in md
     assert "Beta Paper" not in md
 
 
 def test_render_bark_markdown_empty():
-    md = render_bark_markdown([], DailyBrief(title="t", brief="", highlights=[]))
+    md = render_bark_markdown([], DailyBrief(title="t", highlights=[]))
     assert "今天没有发现新论文" in md
 
 
