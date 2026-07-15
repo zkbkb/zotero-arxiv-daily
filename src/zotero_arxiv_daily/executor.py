@@ -8,6 +8,7 @@ import random
 from datetime import datetime
 from .reranker import get_reranker_cls
 from .construct_email import render_email
+from .bark_notify import deliver_bark
 from .utils import send_email
 from openai import OpenAI
 from tqdm import tqdm
@@ -117,7 +118,13 @@ class Executor:
                 p.generate_affiliations(self.openai_client, self.config.llm)
         elif not self.config.executor.send_empty:
             logger.info("No new papers found. No email will be sent.")
+            # Bark is independent: still attempt if enabled and bark.send_empty allows.
+            deliver_bark(self.config, reranked_papers, self.openai_client)
             return
+
+        # Bark and email are independent delivery channels after TLDR.
+        deliver_bark(self.config, reranked_papers, self.openai_client)
+
         logger.info("Sending email...")
         email_content = render_email(reranked_papers)
         send_email(self.config, email_content)

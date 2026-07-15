@@ -11,8 +11,17 @@ from zotero_arxiv_daily.protocol import CorpusPaper, Paper
 # ---------------------------------------------------------------------------
 
 _AFFILIATION_MARKER = "You are an assistant who perfectly extracts affiliations"
+_BRIEF_MARKER = "curious, knowledgeable friend"
 _AFFILIATION_RESPONSE = '["TsingHua University","Peking University"]'
 _TLDR_RESPONSE = "Hello! How can I assist you today?"
+_BRIEF_RESPONSE = (
+    '{"title":"Sparse routing keeps every modality from thinking at once",'
+    '"subtitle":"Only the experts needed by each clue wake up, while cross-modal evidence stays aligned.",'
+    '"highlights":[{"index":0,"headline":"Why wake every expert for every modality?",'
+    '"insight":"Sparse routing cuts compute without throwing away cross-modal clues."},'
+    '{"index":1,"headline":"The experts stay large—the active set gets smaller",'
+    '"insight":"The gain comes from choosing experts per modality, not making every expert smaller."}]}'
+)
 
 
 def _make_chat_response(content: str) -> SimpleNamespace:
@@ -36,6 +45,8 @@ def _stub_chat_create(**kwargs):
     request_str = str(messages)
     if _AFFILIATION_MARKER in request_str:
         return _make_chat_response(_AFFILIATION_RESPONSE)
+    if _BRIEF_MARKER in request_str:
+        return _make_chat_response(_BRIEF_RESPONSE)
     return _make_chat_response(_TLDR_RESPONSE)
 
 
