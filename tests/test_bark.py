@@ -68,7 +68,7 @@ def test_generate_daily_brief_prompt_prioritizes_one_concrete_insight():
     prompt = "\n".join(message["content"] for message in captured["messages"])
     assert "single most surprising" in prompt
     assert "do not try to summarize the collection as a whole" in prompt
-    assert "Do not mention paper counts" in prompt
+    assert "how many papers it contains" in prompt
     assert "state that concrete insight directly" in prompt
     assert "paper-specific editorial headline" in prompt
     assert "Never invent a number" in prompt
