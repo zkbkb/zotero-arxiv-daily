@@ -18,18 +18,28 @@ _SYSTEM_PROMPT = (
 
 _USER_PROMPT_INSTRUCTIONS = """
 Produce a JSON object:
-{"title": "...", "intro": "...", "highlights": [1, 3]}
-- "title": a catchy, attention-grabbing push-notification headline (<=30 characters for Chinese, <=60 for English) capturing the day's dominant theme. Punchy like a viral tech-media headline, but factually accurate -- never fabricate results the papers do not claim.
-- "intro": a 2-3 sentence editor's note naming the 1-3 papers most worth reading today and why.
-- "highlights": the numbers (1-based) of those must-read papers, at most 3.
+{"title": "...", "intro": "...", "highlights": [{"index": 1, "headline": "...", "blurb": "..."}]}
+- "title": a catchy, punchy headline capturing today's dominant theme. Get straight to the point -- do NOT waste characters on filler words like "Today's"/"今日"/"每日". <=30 characters for Chinese, <=60 for English. Factually accurate, never fabricate results the papers do not claim.
+- "intro": one punchy sentence framing why the highlighted papers matter, without filler words or restating "today"/"papers".
+- "highlights": the 1-3 papers most worth reading in depth. For each:
+  - "index": its 1-based number from the list above.
+  - "headline": a catchy, curiosity-provoking question or hook (like a tech-blog subheading) capturing the paper's core trick or result, grounded in its TLDR/abstract. Example style: "48GB 显卡 vs. 65B 模型，QLoRA 是怎么做到的？"
+  - "blurb": a 1-2 sentence punchy explanation of how it works and why it matters -- more vivid and concrete than a plain TLDR, but never exaggerated or fabricated.
 """
+
+
+@dataclass
+class Highlight:
+    index: int  # 0-based
+    headline: str
+    blurb: str
 
 
 @dataclass
 class Digest:
     title: str
     intro: str
-    highlight_indices: list[int] = field(default_factory=list)  # 0-based
+    highlights: list[Highlight] = field(default_factory=list)
     is_fallback: bool = False
 
 
@@ -42,10 +52,28 @@ def fallback_digest(papers: list[Paper], language: str) -> Digest:
     if len(papers) == 0:
         title = f"今日无新论文 ({today})" if _is_chinese(language) else f"No new papers today ({today})"
     elif _is_chinese(language):
-        title = f"📚 今日 arXiv 精选 {len(papers)} 篇 ({today})"
+        title = f"📚 arXiv 精选 {len(papers)} 篇 ({today})"
     else:
-        title = f"📚 Daily arXiv Digest: {len(papers)} papers ({today})"
-    return Digest(title=title, intro="", highlight_indices=[], is_fallback=True)
+        title = f"📚 arXiv Digest: {len(papers)} papers ({today})"
+    return Digest(title=title, intro="", highlights=[], is_fallback=True)
+
+
+def _parse_highlights(raw_highlights, num_papers: int) -> list[Highlight]:
+    highlights = []
+    seen_indices = set()
+    for item in raw_highlights:
+        idx = int(item["index"]) - 1  # model uses 1-based numbering
+        if not (0 <= idx < num_papers) or idx in seen_indices:
+            continue
+        headline = str(item.get("headline", "")).strip()
+        blurb = str(item.get("blurb", "")).strip()
+        if not headline:
+            continue
+        seen_indices.add(idx)
+        highlights.append(Highlight(index=idx, headline=headline, blurb=blurb))
+        if len(highlights) >= MAX_HIGHLIGHTS:
+            break
+    return highlights
 
 
 def _generate_digest_with_llm(papers: list[Paper], openai_client: OpenAI, llm_params: dict) -> Digest:
@@ -82,12 +110,8 @@ def _generate_digest_with_llm(papers: list[Paper], openai_client: OpenAI, llm_pa
     if not title:
         raise ValueError("LLM returned an empty digest title")
     intro = str(parsed.get("intro", "")).strip()
-    highlight_indices = []
-    for h in parsed.get("highlights", []):
-        idx = int(h) - 1  # model uses 1-based numbering
-        if 0 <= idx < len(papers) and idx not in highlight_indices:
-            highlight_indices.append(idx)
-    return Digest(title=title, intro=intro, highlight_indices=highlight_indices[:MAX_HIGHLIGHTS])
+    highlights = _parse_highlights(parsed.get("highlights", []), len(papers))
+    return Digest(title=title, intro=intro, highlights=highlights)
 
 
 def generate_digest(papers: list[Paper], openai_client: OpenAI, llm_params: dict) -> Digest:

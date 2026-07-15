@@ -24,37 +24,74 @@ def _papers():
 
 
 def test_generate_digest_parses_response_and_converts_to_zero_based():
-    client = _stub_client('{"title": "Big News", "intro": "Papers A and B matter.", "highlights": [1, 2]}')
+    client = _stub_client(
+        '{"title": "Big News", "intro": "Papers A and B matter.", '
+        '"highlights": ['
+        '{"index": 1, "headline": "Why does A work?", "blurb": "It works because of X."},'
+        '{"index": 2, "headline": "What about B?", "blurb": "B does Y."}'
+        "]}"
+    )
     digest = generate_digest(_papers(), client, {"language": "English"})
 
     assert digest.title == "Big News"
     assert digest.intro == "Papers A and B matter."
-    assert digest.highlight_indices == [0, 1]
+    assert [h.index for h in digest.highlights] == [0, 1]
+    assert digest.highlights[0].headline == "Why does A work?"
+    assert digest.highlights[0].blurb == "It works because of X."
     assert digest.is_fallback is False
 
 
 def test_generate_digest_parses_json_wrapped_in_prose_or_code_fence():
-    client = _stub_client('Here you go:\n```json\n{"title": "T", "intro": "I", "highlights": [3]}\n```')
+    client = _stub_client(
+        'Here you go:\n```json\n{"title": "T", "intro": "I", '
+        '"highlights": [{"index": 3, "headline": "H", "blurb": "B"}]}\n```'
+    )
     digest = generate_digest(_papers(), client, {"language": "English"})
 
     assert digest.title == "T"
-    assert digest.highlight_indices == [2]
+    assert [h.index for h in digest.highlights] == [2]
 
 
 def test_generate_digest_dedupes_and_clamps_highlights():
-    client = _stub_client('{"title": "T", "intro": "I", "highlights": [1, 1, 99, 0, 2]}')
+    client = _stub_client(
+        '{"title": "T", "intro": "I", "highlights": ['
+        '{"index": 1, "headline": "H1", "blurb": "B1"},'
+        '{"index": 1, "headline": "H1dup", "blurb": "B1dup"},'
+        '{"index": 99, "headline": "H99", "blurb": "B99"},'
+        '{"index": 0, "headline": "H0", "blurb": "B0"},'
+        '{"index": 2, "headline": "H2", "blurb": "B2"}'
+        "]}"
+    )
     digest = generate_digest(_papers(), client, {"language": "English"})
 
     # 1-based: 1->0, 1->0 (dup, dropped), 99 out of range (dropped),
     # 0 -> -1 out of range (dropped), 2 -> 1
-    assert digest.highlight_indices == [0, 1]
+    assert [h.index for h in digest.highlights] == [0, 1]
+
+
+def test_generate_digest_ignores_highlights_with_empty_headline():
+    client = _stub_client(
+        '{"title": "T", "intro": "I", "highlights": ['
+        '{"index": 1, "headline": "", "blurb": "B1"},'
+        '{"index": 2, "headline": "H2", "blurb": "B2"}'
+        "]}"
+    )
+    digest = generate_digest(_papers(), client, {"language": "English"})
+    assert [h.index for h in digest.highlights] == [1]
 
 
 def test_generate_digest_caps_highlights_at_three():
-    client = _stub_client('{"title": "T", "intro": "I", "highlights": [1, 2, 3]}')
+    client = _stub_client(
+        '{"title": "T", "intro": "I", "highlights": ['
+        '{"index": 1, "headline": "H1", "blurb": "B1"},'
+        '{"index": 2, "headline": "H2", "blurb": "B2"},'
+        '{"index": 3, "headline": "H3", "blurb": "B3"},'
+        '{"index": 4, "headline": "H4", "blurb": "B4"}'
+        "]}"
+    )
     papers = _papers() + [make_sample_paper(title="Paper D", tldr="TLDR D", score=5.0)]
     digest = generate_digest(papers, client, {"language": "English"})
-    assert len(digest.highlight_indices) <= 3
+    assert len(digest.highlights) <= 3
 
 
 def test_generate_digest_falls_back_on_malformed_json():
@@ -90,18 +127,18 @@ def test_generate_digest_empty_papers_returns_fallback_without_llm_call():
     digest = generate_digest([], client, {"language": "English"})
 
     assert digest.is_fallback is True
-    assert digest.highlight_indices == []
+    assert digest.highlights == []
 
 
-def test_fallback_digest_language_chinese():
+def test_fallback_digest_language_chinese_has_no_filler_word():
     digest = fallback_digest(_papers(), "Chinese")
-    assert "今日" in digest.title
+    assert "今日" not in digest.title
     assert "3" in digest.title
 
 
 def test_fallback_digest_language_english():
     digest = fallback_digest(_papers(), "English")
-    assert "Daily arXiv Digest" in digest.title
+    assert "arXiv Digest" in digest.title
 
 
 def test_fallback_digest_empty_papers():

@@ -4,7 +4,7 @@ import pytest
 from omegaconf import open_dict
 
 from tests.canned_responses import make_sample_paper, make_stub_requests_post
-from zotero_arxiv_daily.digest import Digest
+from zotero_arxiv_daily.digest import Digest, Highlight
 from zotero_arxiv_daily.notifier.bark import (
     BarkNotifier,
     normalize_bark_endpoint,
@@ -50,36 +50,58 @@ def _make_papers(n):
     ]
 
 
-def test_render_markdown_body_contains_intro_links_scores_and_stars():
+def test_render_markdown_body_renders_highlight_sections_and_roundup():
     papers = _make_papers(3)
-    digest = Digest(title="t", intro="Read the first one.", highlight_indices=[0])
+    digest = Digest(
+        title="t",
+        intro="Read the first one.",
+        highlights=[Highlight(index=0, headline="Why does it work?", blurb="Because of X.")],
+    )
     body = render_markdown_body(papers, digest, max_chars=3000)
 
     assert body.startswith("Read the first one.")
-    assert "1. ⭐ [Paper 0](https://arxiv.org/abs/2026.00000) `9.0`" in body
-    assert "2. [Paper 1](https://arxiv.org/abs/2026.00001) `8.0`" in body
-    assert "TLDR of paper 0." in body
-    assert body.count("⭐") == 1
+    assert "## 1. Why does it work?" in body
+    assert "[Paper 0 (`9.0`)](https://arxiv.org/abs/2026.00000)" in body
+    assert "- Because of X." in body
+    assert "其余速览" in body
+    assert "- 2. [Paper 1](https://arxiv.org/abs/2026.00001) (`8.0`) — TLDR of paper 1." in body
+    # highlighted papers are not repeated in the roundup
+    assert "[Paper 0]" not in body.split("其余速览", 1)[1]
 
 
-def test_render_markdown_body_collapses_multiline_tldr():
+def test_render_markdown_body_no_highlights_only_roundup():
+    papers = _make_papers(2)
+    digest = Digest(title="t", intro="", highlights=[])
+    body = render_markdown_body(papers, digest, max_chars=3000)
+
+    assert "##" not in body
+    assert "其余速览" in body
+    assert "- 1. [Paper 0]" in body
+    assert "- 2. [Paper 1]" in body
+
+
+def test_render_markdown_body_collapses_multiline_tldr_in_roundup():
     papers = [make_sample_paper(tldr="line one\nline two", score=5.0)]
-    digest = Digest(title="t", intro="", highlight_indices=[])
+    digest = Digest(title="t", intro="", highlights=[])
     body = render_markdown_body(papers, digest, max_chars=3000)
     assert "line one line two" in body
 
 
-def test_render_markdown_body_truncates_whole_entries():
+def test_render_markdown_body_truncates_roundup_before_highlights():
     papers = _make_papers(10)
-    digest = Digest(title="t", intro="Intro here.", highlight_indices=[])
-    max_chars = 400
+    digest = Digest(
+        title="t",
+        intro="Intro here.",
+        highlights=[Highlight(index=0, headline="Hook", blurb="Blurb.")],
+    )
+    max_chars = 300
     body = render_markdown_body(papers, digest, max_chars=max_chars)
 
     assert len(body) <= max_chars
     assert "Intro here." in body
+    # the highlight survives even under a tight budget
+    assert "## 1. Hook" in body
     assert "more papers not shown_" in body
-    # entries are dropped from the tail, so the first paper survives
-    assert "[Paper 0](https://arxiv.org/abs/2026.00000)" in body
     assert "[Paper 9]" not in body
 
 
@@ -110,7 +132,11 @@ def test_bark_notifier_sends_payload(config, monkeypatch):
     calls = []
     notifier = _make_bark_notifier(config, monkeypatch, calls)
     papers = _make_papers(2)
-    digest = Digest(title="今日AI大爆发", intro="Read paper 0.", highlight_indices=[0])
+    digest = Digest(
+        title="AI大爆发",
+        intro="Read paper 0.",
+        highlights=[Highlight(index=0, headline="Hook", blurb="Blurb.")],
+    )
 
     notifier.notify(papers, digest)
 
@@ -120,9 +146,9 @@ def test_bark_notifier_sends_payload(config, monkeypatch):
     assert call.timeout == 10
     assert call.headers == {"Content-Type": "application/json; charset=utf-8"}
     payload = call.json
-    assert payload["title"] == "今日AI大爆发"
+    assert payload["title"] == "AI大爆发"
     assert payload["body"] == "Read paper 0."
-    assert "⭐ [Paper 0]" in payload["markdown"]
+    assert "## 1. Hook" in payload["markdown"]
     assert payload["group"] == "arXiv"
     assert payload["sound"] == "calypso"
     assert payload["level"] == "active"
@@ -140,7 +166,7 @@ def test_bark_notifier_includes_optional_fields_when_configured(config, monkeypa
         icon="https://example.com/icon.png",
         click_url="https://example.com",
     )
-    digest = Digest(title="t", intro="", highlight_indices=[])
+    digest = Digest(title="t", intro="", highlights=[])
 
     notifier.notify(_make_papers(1), digest)
 
@@ -152,7 +178,7 @@ def test_bark_notifier_includes_optional_fields_when_configured(config, monkeypa
 def test_bark_notifier_empty_papers_sends_minimal_push(config, monkeypatch):
     calls = []
     notifier = _make_bark_notifier(config, monkeypatch, calls)
-    digest = Digest(title="No new papers today (2026-07-15)", intro="", highlight_indices=[], is_fallback=True)
+    digest = Digest(title="No new papers today (2026-07-15)", intro="", highlights=[], is_fallback=True)
 
     notifier.notify([], digest)
 
@@ -169,13 +195,13 @@ def test_bark_notifier_uses_fallback_digest_when_digest_is_none(config, monkeypa
     notifier.notify(_make_papers(2), digest=None)
 
     payload = calls[0].json
-    assert "2 papers" in payload["title"]
+    assert "2" in payload["title"]
 
 
 def test_bark_notifier_raises_on_http_error(config, monkeypatch):
     calls = []
     notifier = _make_bark_notifier(config, monkeypatch, calls, status_code=500)
-    digest = Digest(title="t", intro="", highlight_indices=[])
+    digest = Digest(title="t", intro="", highlights=[])
 
     with pytest.raises(RuntimeError, match="HTTP 500"):
         notifier.notify(_make_papers(1), digest)

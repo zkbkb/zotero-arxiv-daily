@@ -46,38 +46,63 @@ def normalize_bark_endpoint(raw: str) -> str:
     return f"{scheme}://{parsed.netloc}/{device_key}"
 
 
-def _format_entry(index: int, paper: Paper, highlighted: bool) -> str:
-    star = "⭐ " if highlighted else ""
-    score = f" `{paper.score:.1f}`" if paper.score is not None else ""
-    entry = f"{index}. {star}[{paper.title}]({paper.url}){score}"
+def _format_score(paper: Paper) -> str:
+    return f" (`{paper.score:.1f}`)" if paper.score is not None else ""
+
+
+def _format_highlight_block(index: int, paper: Paper, highlight) -> str:
+    return (
+        f"## {index}. {highlight.headline}\n"
+        f"- [{paper.title}{_format_score(paper)}]({paper.url})\n"
+        f"- {highlight.blurb}"
+    )
+
+
+def _format_roundup_line(index: int, paper: Paper) -> str:
     tldr = " ".join((paper.tldr or paper.abstract or "").split())
+    line = f"- {index}. [{paper.title}]({paper.url}){_format_score(paper)}"
     if tldr:
-        entry += f"\n   {tldr}"
-    return entry
+        line += f" — {tldr}"
+    return line
 
 
 def render_markdown_body(papers: list[Paper], digest: Digest, max_chars: int) -> str:
-    """Render the digest intro and paper list as markdown, dropping whole
-    trailing entries (never mid-entry) until the body fits max_chars."""
-    entries = [
-        _format_entry(i + 1, p, i in digest.highlight_indices)
-        for i, p in enumerate(papers)
-    ]
+    """Render the digest as markdown: expanded highlight sections for the
+    must-read papers, followed by a compact roundup of the rest. Truncates
+    the roundup (and, if still too long, the highlights) from the tail --
+    never mid-entry -- until the body fits max_chars."""
     intro = digest.intro.strip()
+    highlight_by_index = {h.index: h for h in digest.highlights}
 
-    def assemble(kept: list[str]) -> str:
+    highlight_blocks = [
+        _format_highlight_block(idx + 1, papers[idx], highlight_by_index[idx])
+        for idx in sorted(highlight_by_index)
+    ]
+    roundup_lines = [
+        _format_roundup_line(i + 1, p)
+        for i, p in enumerate(papers)
+        if i not in highlight_by_index
+    ]
+
+    def assemble(kept_highlights: list[str], kept_roundup: list[str]) -> str:
         parts = []
         if intro:
             parts.append(intro)
-        parts.extend(kept)
-        if len(kept) < len(entries):
-            parts.append(f"_+{len(entries) - len(kept)} more papers not shown_")
+        parts.extend(kept_highlights)
+        if kept_roundup or len(kept_roundup) < len(roundup_lines):
+            section = "其余速览\n" + "\n".join(kept_roundup)
+            if len(kept_roundup) < len(roundup_lines):
+                section += f"\n_+{len(roundup_lines) - len(kept_roundup)} more papers not shown_"
+            parts.append(section)
         return "\n\n".join(parts)
 
-    kept = list(entries)
-    while kept and len(assemble(kept)) > max_chars:
-        kept.pop()
-    return assemble(kept)
+    kept_highlights = list(highlight_blocks)
+    kept_roundup = list(roundup_lines)
+    while kept_roundup and len(assemble(kept_highlights, kept_roundup)) > max_chars:
+        kept_roundup.pop()
+    while len(kept_highlights) > 1 and len(assemble(kept_highlights, kept_roundup)) > max_chars:
+        kept_highlights.pop()
+    return assemble(kept_highlights, kept_roundup)
 
 
 @register_notifier("bark")

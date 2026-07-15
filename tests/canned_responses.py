@@ -14,7 +14,12 @@ _AFFILIATION_MARKER = "You are an assistant who perfectly extracts affiliations"
 _AFFILIATION_RESPONSE = '["TsingHua University","Peking University"]'
 _TLDR_RESPONSE = "Hello! How can I assist you today?"
 _DIGEST_MARKER = "editor of a daily arXiv digest"
-_DIGEST_RESPONSE = '{"title": "今日AI大爆发", "intro": "First two papers are must-reads.", "highlights": [1, 2]}'
+_DIGEST_RESPONSE = (
+    '{"title": "AI大爆发", "intro": "First two papers are must-reads.", "highlights": ['
+    '{"index": 1, "headline": "Why does paper 1 matter?", "blurb": "It solves X."},'
+    '{"index": 2, "headline": "What did paper 2 find?", "blurb": "It shows Y."}'
+    "]}"
+)
 
 
 def _make_chat_response(content: str) -> SimpleNamespace:
