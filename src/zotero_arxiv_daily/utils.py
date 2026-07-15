@@ -197,8 +197,13 @@ def is_bark_enabled(config: DictConfig) -> bool:
     return _as_bool(OmegaConf.select(config, "bark.enabled", default=False))
 
 
-def send_bark(config: DictConfig, title: str, markdown: str) -> None:
-    """Push a Bark notification with title + markdown body."""
+def send_bark(
+    config: DictConfig,
+    title: str,
+    markdown: str,
+    subtitle: str = "",
+) -> None:
+    """Push a Bark notification with native title/subtitle and markdown body."""
     device_key = str(config.bark.device_key).strip()
     server = str(OmegaConf.select(config, "bark.server", default="https://api.day.app") or "https://api.day.app")
     server = server.rstrip("/")
@@ -212,6 +217,8 @@ def send_bark(config: DictConfig, title: str, markdown: str) -> None:
         # Bark's JSON POST API supports the same grouping semantics as ?group=...
         "group": group,
     }
+    if subtitle:
+        payload["subtitle"] = subtitle
 
     url = f"{server}/{device_key}"
     response = requests.post(url, json=payload, timeout=30)

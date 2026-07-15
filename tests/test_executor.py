@@ -275,8 +275,9 @@ def test_run_with_bark_enabled_sends_bark_and_email(config, monkeypatch):
     assert len(bark_calls) == 1
     assert bark_calls[0]["url"] == "https://api.day.app/test-device-key"
     assert bark_calls[0]["json"]["title"]
+    assert bark_calls[0]["json"]["subtitle"]
     assert "markdown" in bark_calls[0]["json"]
-    assert "Bark Paper" in bark_calls[0]["json"]["markdown"]
+    assert "原论文 · 相关度" in bark_calls[0]["json"]["markdown"]
 
 
 def test_run_bark_failure_still_sends_email(config, monkeypatch):

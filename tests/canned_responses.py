@@ -16,6 +16,7 @@ _AFFILIATION_RESPONSE = '["TsingHua University","Peking University"]'
 _TLDR_RESPONSE = "Hello! How can I assist you today?"
 _BRIEF_RESPONSE = (
     '{"title":"Sparse routing keeps every modality from thinking at once",'
+    '"subtitle":"Only the experts needed by each clue wake up, while cross-modal evidence stays aligned.",'
     '"highlights":[{"index":0,"headline":"Why wake every expert for every modality?",'
     '"insight":"Sparse routing cuts compute without throwing away cross-modal clues."},'
     '{"index":1,"headline":"The experts stay large—the active set gets smaller",'

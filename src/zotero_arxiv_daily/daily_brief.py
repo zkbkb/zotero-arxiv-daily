@@ -24,6 +24,7 @@ class Highlight:
 @dataclass
 class DailyBrief:
     title: str
+    subtitle: str = ""
     highlights: list[Highlight] = field(default_factory=list)
 
 
@@ -49,6 +50,7 @@ def _extract_json_object(text: str) -> dict:
 
 def _parse_daily_brief(payload: dict, paper_count: int) -> DailyBrief:
     title = str(payload.get("title") or "").strip()
+    subtitle = str(payload.get("subtitle") or "").strip()
     raw_highlights = payload.get("highlights") or []
     highlights: list[Highlight] = []
     if isinstance(raw_highlights, list):
@@ -70,7 +72,7 @@ def _parse_daily_brief(payload: dict, paper_count: int) -> DailyBrief:
         raise ValueError("daily brief title is empty")
     if not highlights:
         highlights = [Highlight(index=i) for i in range(paper_count)]
-    return DailyBrief(title=title, highlights=highlights)
+    return DailyBrief(title=title, subtitle=subtitle, highlights=highlights)
 
 
 def generate_daily_brief(
@@ -119,8 +121,13 @@ def generate_daily_brief(
         "do not try to summarize the collection as a whole. Then write:\n"
         "- title: state that concrete insight directly in one short, curiosity-provoking sentence. "
         "Do not prefix it with 'Today', 'Daily', 'Must-read', 'Paper digest', or similar framing. "
-        "Do not merely name a broad topic or list several themes. Aim for no more than "
-        "25 Chinese characters or 12 English words when practical\n"
+        "Do not describe or summarize the batch, mention multiple themes, or use framing like "
+        "'five ideas'. It is fine—and preferred—to focus entirely on the strongest story. "
+        "Aim for no more than 25 Chinese characters or 12 English words when practical\n"
+        "- subtitle: one vivid, information-dense sentence that makes the title more concrete "
+        "by adding its key mechanism, number, or consequence. It is the notification's native "
+        "subtitle, not an overview. Never repeat or paraphrase the title, mention the batch, "
+        "paper count, or say what is 'worth reading'\n"
         "- highlights: a JSON array of objects "
         "{\"index\": <int>, \"headline\": \"<paper-specific editorial headline>\", "
         "\"insight\": \"<one concise, vivid takeaway>\"} "
@@ -128,9 +135,10 @@ def generate_daily_brief(
         "title first. Prefer relevance + substance and skip weak or redundant items. "
         "Write each headline as a concrete tension, question, unexpected result, or vivid "
         "comparison—not the original academic title and not a generic topic label. "
-        "Every item gets its own headline, including the first one. The push title belongs "
-        "to the whole digest, so the first item's headline must take a clearly different "
-        "angle or wording from the push title—never rephrase or repeat it. "
+        "Every item gets its own headline, including the first one. Each headline must name "
+        "a recognizable method, model, dataset, or idea from that paper so the academic title "
+        "does not need to be displayed in full. The first item's headline must take a clearly "
+        "different angle from both the push title and subtitle—never rephrase or repeat them. "
         "The reading experience is tiered, so vary the depth: the FIRST item is the lead "
         "story—give it the richest insight (2-3 sentences with the key mechanism and result). "
         "The next one or two items get a 1-2 sentence insight. Any remaining items form a "
@@ -140,7 +148,7 @@ def generate_daily_brief(
         "Do not label the text as a recommendation or summary.\n\n"
         f"Papers:\n{papers_block}\n\n"
         "Example shape:\n"
-        '{"title":"...", "highlights":['
+        '{"title":"...", "subtitle":"...", "highlights":['
         '{"index":0,"headline":"...","insight":"..."}]}'
     )
 

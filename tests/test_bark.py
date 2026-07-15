@@ -29,6 +29,7 @@ def test_generate_daily_brief_parses_stub_json():
     ]
     brief = generate_daily_brief(papers, make_stub_openai_client(), {"language": "English", "generation_kwargs": {}})
     assert "sparse routing" in brief.title.lower()
+    assert brief.subtitle
     assert len(brief.highlights) == 2
     assert brief.highlights[0].headline
     assert brief.highlights[0].insight
@@ -44,7 +45,8 @@ def test_generate_daily_brief_prompt_prioritizes_one_concrete_insight():
                 SimpleNamespace(
                     message=SimpleNamespace(
                         content=(
-                            '{"title":"A concrete result","highlights":[{"index":0,'
+                            '{"title":"A concrete result","subtitle":"A concrete mechanism",'
+                            '"highlights":[{"index":0,'
                             '"headline":"A concrete question?","insight":"Specific insight"}]}'
                         )
                     )
@@ -72,6 +74,8 @@ def test_generate_daily_brief_prompt_prioritizes_one_concrete_insight():
     assert "state that concrete insight directly" in prompt
     assert "paper-specific editorial headline" in prompt
     assert "Never invent a number" in prompt
+    assert "notification's native subtitle" in prompt
+    assert "does not need to be displayed in full" in prompt
     assert "the FIRST item is the lead" in prompt
     assert "quick-scan list" in prompt
     assert "abstract: This paper explores" in prompt
@@ -110,9 +114,10 @@ def test_render_bark_markdown_includes_brief_and_highlights():
     )
     md = render_bark_markdown(papers, brief, language="Chinese")
     # Every paper is a numbered story with its own headline.
-    assert md.startswith("**1. Can Alpha do more with less?**")
-    assert "[Alpha Paper (8.8)](https://arxiv.org/abs/2026.00001)" in md
+    assert md.startswith("**1｜Can Alpha do more with less?**")
+    assert "[原论文 · 相关度 8.8](https://arxiv.org/abs/2026.00001)" in md
     assert "A clearer insight than the original TLDR." in md
+    assert "Alpha Paper" not in md
     assert "推荐理由" not in md
     assert "核心内容" not in md
     assert "今日导读" not in md
@@ -138,13 +143,13 @@ def test_render_bark_markdown_tiered_layout_for_many_papers():
     md = render_bark_markdown(papers, brief, language="Chinese")
 
     # All items are numbered stories with their own headlines.
-    assert md.startswith("**1. Lead headline?**")
+    assert md.startswith("**1｜Lead headline?**")
     assert "Lead insight with rich detail." in md
-    assert "**2. Featured headline 1**" in md
-    assert "**3. Featured headline 2**" in md
+    assert "**2｜Featured headline 1**" in md
+    assert "**3｜Featured headline 2**" in md
     # Tail items keep the numbered shape; the headline alone carries the hook.
-    assert "**4. Quick hook 3**\n\n[Paper 3 (6.0)](https://example.com/3)" in md
-    assert "**5. Quick hook 4**\n\n[Paper 4 (5.0)](https://example.com/4)" in md
+    assert "**4｜Quick hook 3**\n\n[原论文 · 相关度 6.0](https://example.com/3)" in md
+    assert "**5｜Quick hook 4**\n\n[原论文 · 相关度 5.0](https://example.com/4)" in md
 
 
 def test_render_bark_markdown_empty():
@@ -193,10 +198,11 @@ def test_send_bark_posts_title_and_markdown(config, monkeypatch):
         config.bark.server = "https://api.day.app"
         config.bark.group = "Arxiv"
 
-    send_bark(config, "Hello Title", "## md body")
+    send_bark(config, "Hello Title", "## md body", subtitle="Hello Subtitle")
 
     assert captured["url"] == "https://api.day.app/device-key"
     assert captured["json"]["title"] == "Hello Title"
+    assert captured["json"]["subtitle"] == "Hello Subtitle"
     assert captured["json"]["markdown"] == "## md body"
     assert captured["json"]["group"] == "Arxiv"
     assert "body" not in captured["json"]

@@ -49,7 +49,12 @@ def deliver_bark(config: DictConfig, papers: list[Paper], openai_client: OpenAI)
             language=language,
         )
         logger.info(f"Sending Bark notification: {brief.title}")
-        send_bark(config, brief.title, markdown)
+        send_bark(
+            config,
+            brief.title,
+            markdown,
+            subtitle=brief.subtitle,
+        )
         logger.info("Bark notification sent successfully")
     except Exception as e:
         logger.warning(f"Bark notification failed (email path unaffected): {e}")

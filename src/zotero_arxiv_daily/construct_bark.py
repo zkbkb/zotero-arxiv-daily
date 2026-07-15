@@ -31,6 +31,8 @@ def render_bark_markdown(
         if chinese
         else "No papers today. Take a rest!"
     )
+    source_label = "原论文" if chinese else "Paper"
+    relevance_label = "相关度" if chinese else "relevance"
 
     highlights = list(brief.highlights)
     if not highlights and include_all_if_no_highlights:
@@ -44,22 +46,25 @@ def render_bark_markdown(
         seen.add(highlight.index)
         selected.append((highlight, papers[highlight.index]))
 
-    # Every paper is a numbered story: bold numbered headline, linked title
-    # with relevance score, then an insight paragraph. Depth (insight length)
-    # decreases with position, which the LLM prompt controls.
+    # Every paper is a numbered story: editorial headline, insight, then a
+    # compact source link. Long academic titles stay behind the link instead
+    # of dominating the mobile screen.
     sections: list[str] = []
     for position, (highlight, paper) in enumerate(selected):
         number = position + 1
         score = _format_score(paper.score)
-        paper_link = f"[{paper.title} ({score})]({paper.url})"
+        paper_link = (
+            f"[{source_label} · {relevance_label} {score}]({paper.url})"
+        )
         insight = (highlight.insight or paper.tldr or "").strip()
 
         if highlight.headline:
-            block = f"**{number}. {highlight.headline}**\n\n{paper_link}"
+            block = f"**{number}｜{highlight.headline}**"
         else:
-            block = f"**{number}.** {paper_link}"
+            block = f"**{number}｜{paper.title}**"
         if insight:
             block += f"\n\n{insight}"
+        block += f"\n\n{paper_link}"
         sections.append(block)
 
     if not sections:
