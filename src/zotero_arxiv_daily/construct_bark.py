@@ -35,7 +35,6 @@ def render_bark_markdown(
         if chinese
         else "No papers today. Take a rest!"
     )
-    more_label = "其余速览" if chinese else "Also new"
 
     highlights = list(brief.highlights)
     if not highlights and include_all_if_no_highlights:
@@ -49,39 +48,41 @@ def render_bark_markdown(
         seen.add(highlight.index)
         selected.append((highlight, papers[highlight.index]))
 
-    sections: list[str] = []
+    lead_block = ""
+    featured: list[str] = []
     bullets: list[str] = []
     for position, (highlight, paper) in enumerate(selected):
         score = _format_score(paper.score)
         paper_link = f"[{paper.title} ({score})]({paper.url})"
         insight = (highlight.insight or paper.tldr or "").strip()
 
-        if highlight.headline and position == 0:
-            # Lead story: full treatment, mirrors the push title's insight.
-            block = f"### {highlight.headline}\n\n{paper_link}"
-            if insight:
-                block += f"\n\n{insight}"
-            sections.append(block)
+        if position == 0:
+            # The push title already serves as the lead headline, so the body
+            # opens directly with the lead paper: link, then its insight.
+            lead_block = f"{paper_link}\n\n{insight}" if insight else paper_link
         elif highlight.headline and position <= _FEATURED_COUNT:
             block = f"**{highlight.headline}**\n\n{paper_link}"
             if insight:
                 block += f"\n\n{insight}"
-            sections.append(block)
+            featured.append(block)
         else:
             hook = highlight.headline or insight
             if hook:
-                bullets.append(f"- {paper_link} — {hook}")
+                bullets.append(f"- {hook} → {paper_link}")
             else:
                 bullets.append(f"- {paper_link}")
 
+    # Tiers are separated by horizontal rules; bold is reserved for featured
+    # headlines only, so the visual hierarchy stays readable in Bark.
+    tiers: list[str] = []
+    if lead_block:
+        tiers.append(lead_block)
+    if featured:
+        tiers.append("\n\n".join(featured))
     if bullets:
-        bullet_block = "\n".join(bullets)
-        if sections:
-            sections.append(f"**{more_label}**\n\n{bullet_block}")
-        else:
-            sections.append(bullet_block)
+        tiers.append("\n".join(bullets))
 
-    if not sections:
+    if not tiers:
         return empty_message
 
-    return "\n\n".join(sections).strip()
+    return "\n\n---\n\n".join(tiers).strip()

@@ -109,8 +109,9 @@ def test_render_bark_markdown_includes_brief_and_highlights():
         ],
     )
     md = render_bark_markdown(papers, brief, language="Chinese")
-    assert "### Can Alpha do more with less?" in md
-    assert "[Alpha Paper (8.8)](https://arxiv.org/abs/2026.00001)" in md
+    # The push title serves as the lead headline, so it is not repeated in the body.
+    assert "Can Alpha do more with less?" not in md
+    assert md.startswith("[Alpha Paper (8.8)](https://arxiv.org/abs/2026.00001)")
     assert "A clearer insight than the original TLDR." in md
     assert "推荐理由" not in md
     assert "核心内容" not in md
@@ -136,17 +137,20 @@ def test_render_bark_markdown_tiered_layout_for_many_papers():
     )
     md = render_bark_markdown(papers, brief, language="Chinese")
 
-    # Lead story: H3 headline + link + insight.
-    assert "### Lead headline?" in md
+    # Lead story: opens with the link directly; its headline is not rendered
+    # because the push title plays that role.
+    assert md.startswith("[Paper 0 (9.0)](https://example.com/0)")
+    assert "Lead headline?" not in md
     assert "Lead insight with rich detail." in md
-    # Featured items: bold headline, not H3.
+    # Featured items: bold headline is the only bold usage.
     assert "**Featured headline 1**" in md
     assert "**Featured headline 2**" in md
-    assert "### Featured headline 1" not in md
-    # Tail items: quick-scan bullets under a small label.
-    assert "**其余速览**" in md
-    assert "- [Paper 3 (6.0)](https://example.com/3) — Quick hook 3" in md
-    assert "- [Paper 4 (5.0)](https://example.com/4) — Quick hook 4" in md
+    # Tail items: quick-scan bullets, hook first, link after.
+    assert "**其余速览**" not in md
+    assert "- Quick hook 3 → [Paper 3 (6.0)](https://example.com/3)" in md
+    assert "- Quick hook 4 → [Paper 4 (5.0)](https://example.com/4)" in md
+    # Tiers are separated by horizontal rules: lead | featured | bullets.
+    assert md.count("\n\n---\n\n") == 2
 
 
 def test_render_bark_markdown_empty():
