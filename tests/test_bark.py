@@ -29,10 +29,11 @@ def test_generate_daily_brief_parses_stub_json():
         make_sample_paper(title="Paper B", score=7.2, tldr="TLDR B"),
     ]
     brief = generate_daily_brief(papers, make_stub_openai_client(), {"language": "English", "generation_kwargs": {}})
-    assert "multimodal" in brief.title.lower() or "must-reads" in brief.title.lower()
+    assert "multimodal" in brief.title.lower()
     assert brief.brief
     assert len(brief.highlights) == 2
     assert brief.highlights[0].comment
+    assert brief.highlights[0].summary
 
 
 def test_generate_daily_brief_fallback_on_invalid_json():
@@ -59,20 +60,29 @@ def test_render_bark_markdown_includes_brief_and_highlights():
     brief = DailyBrief(
         title="Catchy Title",
         brief="Today's focus is Alpha.",
-        highlights=[Highlight(index=0, comment="Top pick")],
+        highlights=[
+            Highlight(
+                index=0,
+                comment="Top pick",
+                summary="A clearer summary than the original TLDR.",
+            )
+        ],
     )
-    md = render_bark_markdown(papers, brief)
+    md = render_bark_markdown(papers, brief, language="Chinese")
     assert "Today's focus is Alpha." in md
-    assert "### Alpha Paper" in md
-    assert "**Why:** Top pick" in md
-    assert "**TLDR:** Alpha TLDR" in md
+    assert "> **今日导读**" in md
+    assert "### 1. Alpha Paper" in md
+    assert "**推荐理由**\n\nTop pick" in md
+    assert "**核心内容**\n\nA clearer summary than the original TLDR." in md
+    assert "`相关度 8.8`" in md
     assert "[PDF](https://example.com/a.pdf)" in md
+    assert "\n\n---\n\n" in md
     assert "Beta Paper" not in md
 
 
 def test_render_bark_markdown_empty():
     md = render_bark_markdown([], DailyBrief(title="t", brief="", highlights=[]))
-    assert "No Papers Today" in md
+    assert "今天没有发现新论文" in md
 
 
 def test_is_bark_enabled_requires_flag_and_key(config):
@@ -114,11 +124,12 @@ def test_send_bark_posts_title_and_markdown(config, monkeypatch):
         config.bark.enabled = True
         config.bark.device_key = "device-key"
         config.bark.server = "https://api.day.app"
-        config.bark.group = "arxiv-daily"
+        config.bark.group = "Arxiv"
 
     send_bark(config, "Hello Title", "## md body")
 
     assert captured["url"] == "https://api.day.app/device-key"
     assert captured["json"]["title"] == "Hello Title"
     assert captured["json"]["markdown"] == "## md body"
-    assert captured["json"]["group"] == "arxiv-daily"
+    assert captured["json"]["group"] == "Arxiv"
+    assert "body" not in captured["json"]

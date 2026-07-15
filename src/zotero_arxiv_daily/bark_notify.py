@@ -27,11 +27,27 @@ def deliver_bark(config: DictConfig, papers: list[Paper], openai_client: OpenAI)
     try:
         max_n = int(OmegaConf.select(config, "bark.max_paper_num", default=10) or 10)
         bark_papers = papers[:max_n] if max_n > 0 else []
+        language = str(
+            OmegaConf.select(
+                config,
+                "bark.language",
+                default=OmegaConf.select(config, "llm.language", default="English"),
+            )
+        )
         if bark_papers:
-            brief = generate_daily_brief(bark_papers, openai_client, config.llm)
+            brief = generate_daily_brief(
+                bark_papers,
+                openai_client,
+                config.llm,
+                language=language,
+            )
         else:
             brief = fallback_daily_brief([])
-        markdown = render_bark_markdown(bark_papers, brief)
+        markdown = render_bark_markdown(
+            bark_papers,
+            brief,
+            language=language,
+        )
         logger.info(f"Sending Bark notification: {brief.title}")
         send_bark(config, brief.title, markdown)
         logger.info("Bark notification sent successfully")

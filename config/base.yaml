@@ -54,6 +54,7 @@ bark:
   enabled: false # Whether to also push a Bark notification after TLDR generation. Independent from email.
   device_key: null # Bark device key. Example: abcdefghijklmn
   server: https://api.day.app # Bark server base URL. Example: https://api.day.app
-  group: arxiv-daily # Bark notification group name.
+  group: Arxiv # Bark notification group name.
+  language: Chinese # Language used by the Bark brief. Independent from the email TLDR language.
   max_paper_num: 10 # Max papers included in the Bark markdown body. Does not affect email max_paper_num.
   send_empty: false # Whether to send a Bark push when there are no papers today.

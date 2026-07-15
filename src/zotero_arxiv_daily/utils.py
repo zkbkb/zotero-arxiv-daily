@@ -202,16 +202,16 @@ def send_bark(config: DictConfig, title: str, markdown: str) -> None:
     device_key = str(config.bark.device_key).strip()
     server = str(OmegaConf.select(config, "bark.server", default="https://api.day.app") or "https://api.day.app")
     server = server.rstrip("/")
-    group = OmegaConf.select(config, "bark.group", default=None)
+    group = str(
+        OmegaConf.select(config, "bark.group", default="Arxiv") or "Arxiv"
+    ).strip()
 
     payload = {
         "title": title,
         "markdown": markdown,
-        # Bark ignores body when markdown is set; keep a plain fallback for older servers.
-        "body": markdown,
+        # Bark's JSON POST API supports the same grouping semantics as ?group=...
+        "group": group,
     }
-    if group:
-        payload["group"] = str(group)
 
     url = f"{server}/{device_key}"
     response = requests.post(url, json=payload, timeout=30)

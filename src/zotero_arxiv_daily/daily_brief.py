@@ -18,6 +18,7 @@ from .protocol import Paper
 class Highlight:
     index: int
     comment: str = ""
+    summary: str = ""
 
 
 @dataclass
@@ -64,7 +65,10 @@ def _parse_daily_brief(payload: dict, paper_count: int) -> DailyBrief:
             if index < 0 or index >= paper_count:
                 continue
             comment = str(item.get("comment") or "").strip()
-            highlights.append(Highlight(index=index, comment=comment))
+            summary = str(item.get("summary") or "").strip()
+            highlights.append(
+                Highlight(index=index, comment=comment, summary=summary)
+            )
     if not title:
         raise ValueError("daily brief title is empty")
     if not highlights:
@@ -76,12 +80,13 @@ def generate_daily_brief(
     papers: list[Paper],
     openai_client: OpenAI,
     llm_params: DictConfig | dict,
+    language: str | None = None,
 ) -> DailyBrief:
-    """Ask the LLM for a catchy title, short brief, and worth-reading highlights."""
+    """Ask the LLM for a polished title, brief, and worth-reading highlights."""
     if not papers:
         return fallback_daily_brief([])
 
-    lang = llm_params.get("language", "English")
+    lang = language or llm_params.get("language", "English")
     paper_lines = []
     for i, paper in enumerate(papers):
         score = round(paper.score, 2) if paper.score is not None else "Unknown"
@@ -94,22 +99,28 @@ def generate_daily_brief(
     papers_block = "\n\n".join(paper_lines)
 
     system = (
-        f"You write catchy mobile push-notification titles and short daily briefs "
-        f"for a research-paper digest. Always answer in {lang}. "
-        f"Return ONLY a JSON object, no markdown fences."
+        "You are an experienced research editor writing a concise mobile digest. "
+        f"Always answer in {lang}. Use a natural, restrained, informative style. "
+        "Avoid clickbait, hype, slogans, and marketing clichés. "
+        "Keep original paper titles unchanged. "
+        "Return ONLY a JSON object, no markdown fences."
     )
     user = (
         "Given today's ranked papers (higher score = more relevant to the reader's library), "
         "select the papers that are most worth reading, then write:\n"
-        "- title: one short, attention-grabbing push title that captures today's theme "
-        "(not a bland date-only subject line)\n"
-        "- brief: 1-3 sentences of editorial lead-in highlighting why they matter\n"
-        "- highlights: a JSON array of objects {\"index\": <int>, \"comment\": \"<one-line remark>\"} "
+        "- title: one specific, concise title that captures the shared research theme; "
+        "do not use generic phrases such as 'must-read', 'breakthrough', or 'game changer'\n"
+        "- brief: at most 2 short sentences explaining today's main thread without repeating the title\n"
+        "- highlights: a JSON array of objects "
+        "{\"index\": <int>, \"comment\": \"<one-line recommendation reason>\", "
+        "\"summary\": \"<one-sentence plain-language summary>\"} "
         "for the papers worth reading (use the bracketed index). Prefer relevance + substance; "
-        "skip weak or redundant items when reasonable.\n\n"
+        "skip weak or redundant items when reasonable. Keep each comment and summary concise, "
+        "and do not repeat the same information in both fields.\n\n"
         f"Papers:\n{papers_block}\n\n"
         "Example shape:\n"
-        '{"title":"...", "brief":"...", "highlights":[{"index":0,"comment":"..."}]}'
+        '{"title":"...", "brief":"...", "highlights":['
+        '{"index":0,"comment":"...","summary":"..."}]}'
     )
 
     try:

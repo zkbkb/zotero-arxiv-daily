@@ -11,14 +11,16 @@ from zotero_arxiv_daily.protocol import CorpusPaper, Paper
 # ---------------------------------------------------------------------------
 
 _AFFILIATION_MARKER = "You are an assistant who perfectly extracts affiliations"
-_BRIEF_MARKER = "catchy mobile push-notification titles"
+_BRIEF_MARKER = "experienced research editor"
 _AFFILIATION_RESPONSE = '["TsingHua University","Peking University"]'
 _TLDR_RESPONSE = "Hello! How can I assist you today?"
 _BRIEF_RESPONSE = (
-    '{"title":"Todays must-reads in multimodal reasoning",'
+    '{"title":"Multimodal reasoning and efficient adaptation",'
     '"brief":"Three high-signal papers stand out for your library today.",'
-    '"highlights":[{"index":0,"comment":"Closest match to your corpus."},'
-    '{"index":1,"comment":"Strong follow-up idea."}]}'
+    '"highlights":[{"index":0,"comment":"Closest match to your corpus.",'
+    '"summary":"A concise summary of the first paper."},'
+    '{"index":1,"comment":"Strong follow-up idea.",'
+    '"summary":"A concise summary of the second paper."}]}'
 )
 
 
