@@ -5,7 +5,7 @@ import requests
 from loguru import logger
 from omegaconf import DictConfig
 
-from ..digest import Digest, fallback_digest
+from ..digest import Digest, _is_chinese, fallback_digest
 from ..protocol import Paper
 from .base import BaseNotifier, register_notifier
 
@@ -51,37 +51,44 @@ def _format_score(paper: Paper) -> str:
 
 
 def _format_highlight_block(index: int, paper: Paper, highlight) -> str:
-    return (
-        f"## {index}. {highlight.headline}\n"
-        f"- [{paper.title}{_format_score(paper)}]({paper.url})\n"
-        f"- {highlight.blurb}"
-    )
+    # No list bullets: a "## N. hook" heading, the linked title on its own
+    # line, then the blurb as a plain paragraph. Blocks and lines are joined
+    # by blank lines so Bark renders airy paragraphs, not a cramped list.
+    parts = [
+        f"## {index}. {highlight.headline}",
+        f"[{paper.title}{_format_score(paper)}]({paper.url})",
+    ]
+    if highlight.blurb:
+        parts.append(highlight.blurb)
+    return "\n\n".join(parts)
 
 
-def _format_roundup_line(index: int, paper: Paper) -> str:
-    # The numeral is wrapped in bold (not left as bare "N.") so Bark's
-    # markdown renderer doesn't mistake "- N." for a nested ordered list.
+def _format_roundup_entry(index: int, paper: Paper) -> str:
+    # Bullet-free: a bold numeral leads the linked title, TLDR follows inline.
     tldr = " ".join((paper.tldr or paper.abstract or "").split())
-    line = f"- **{index}.** [{paper.title}]({paper.url}){_format_score(paper)}"
+    entry = f"**{index}.** [{paper.title}]({paper.url}){_format_score(paper)}"
     if tldr:
-        line += f" — {tldr}"
-    return line
+        entry += f" — {tldr}"
+    return entry
 
 
-def render_markdown_body(papers: list[Paper], digest: Digest, max_chars: int) -> str:
+def render_markdown_body(papers: list[Paper], digest: Digest, max_chars: int, language: str = "English") -> str:
     """Render the digest as markdown: expanded highlight sections for the
-    must-read papers, followed by a compact roundup of the rest. Truncates
-    the roundup (and, if still too long, the highlights) from the tail --
-    never mid-entry -- until the body fits max_chars."""
+    must-read papers, followed by a compact roundup of the rest. No list
+    bullets anywhere -- every piece is its own paragraph separated by blank
+    lines. Truncates the roundup (and, if still too long, the highlights)
+    from the tail -- never mid-entry -- until the body fits max_chars."""
     intro = digest.intro.strip()
     highlight_by_index = {h.index: h for h in digest.highlights}
+    chinese = _is_chinese(language)
+    roundup_label = "### 其余速览" if chinese else "### More picks"
 
     highlight_blocks = [
         _format_highlight_block(idx + 1, papers[idx], highlight_by_index[idx])
         for idx in sorted(highlight_by_index)
     ]
-    roundup_lines = [
-        _format_roundup_line(i + 1, p)
+    roundup_entries = [
+        _format_roundup_entry(i + 1, p)
         for i, p in enumerate(papers)
         if i not in highlight_by_index
     ]
@@ -91,15 +98,16 @@ def render_markdown_body(papers: list[Paper], digest: Digest, max_chars: int) ->
         if intro:
             parts.append(intro)
         parts.extend(kept_highlights)
-        if kept_roundup or len(kept_roundup) < len(roundup_lines):
-            section = "### 其余速览\n" + "\n".join(kept_roundup)
-            if len(kept_roundup) < len(roundup_lines):
-                section += f"\n_+{len(roundup_lines) - len(kept_roundup)} more papers not shown_"
-            parts.append(section)
+        if roundup_entries:
+            section = [roundup_label, *kept_roundup]
+            dropped = len(roundup_entries) - len(kept_roundup)
+            if dropped:
+                section.append(f"_还有 {dropped} 篇未展示_" if chinese else f"_+{dropped} more not shown_")
+            parts.append("\n\n".join(section))
         return "\n\n".join(parts)
 
     kept_highlights = list(highlight_blocks)
-    kept_roundup = list(roundup_lines)
+    kept_roundup = list(roundup_entries)
     while kept_roundup and len(assemble(kept_highlights, kept_roundup)) > max_chars:
         kept_roundup.pop()
     while len(kept_highlights) > 1 and len(assemble(kept_highlights, kept_roundup)) > max_chars:
@@ -130,10 +138,11 @@ class BarkNotifier(BaseNotifier):
         self.max_body_chars = int(bark_config.max_body_chars)
 
     def notify(self, papers: list[Paper], digest: Optional[Digest] = None) -> None:
+        language = self.config.llm.get("language", "English")
         if digest is None:
-            digest = fallback_digest(papers, self.config.llm.get("language", "English"))
+            digest = fallback_digest(papers, language)
         if papers:
-            markdown_body = render_markdown_body(papers, digest, self.max_body_chars)
+            markdown_body = render_markdown_body(papers, digest, self.max_body_chars, language)
             plain_body = digest.intro.strip() or f"{len(papers)} new papers today"
         else:
             # empty day: minimal push, no paper list

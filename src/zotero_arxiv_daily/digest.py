@@ -12,19 +12,23 @@ from .protocol import Paper
 MAX_HIGHLIGHTS = 3
 
 _SYSTEM_PROMPT = (
-    "You are the editor of a daily arXiv digest push notification. "
-    "Respond in {lang}. Return ONLY a JSON object, no other text."
+    "You are a sharp, witty tech editor who curates a daily arXiv digest that people actually look forward to opening. "
+    "You know the research cold, but you write like a great science communicator: vivid, specific, playful, opinionated -- never dry, robotic, or corporate. "
+    "Write all content in {lang}. Return ONLY a JSON object, no other text."
 )
 
 _USER_PROMPT_INSTRUCTIONS = """
-Produce a JSON object:
+Return a JSON object with this exact shape:
 {"title": "...", "intro": "...", "highlights": [{"index": 1, "headline": "...", "blurb": "..."}]}
-- "title": a catchy, punchy headline capturing today's dominant theme. Get straight to the point -- do NOT waste characters on filler words like "Today's"/"今日"/"每日". <=30 characters for Chinese, <=60 for English. Factually accurate, never fabricate results the papers do not claim.
-- "intro": one punchy sentence framing why the highlighted papers matter, without filler words or restating "today"/"papers".
+
+VOICE (this matters most): write like a top-tier tech blogger / 科技媒体, NOT like a paper abstract. Be punchy, concrete, curious, a little cheeky. Lead with the hook. Use the actual "aha" trick and real numbers from each paper. Have a point of view. But stay strictly truthful: never invent results or exaggerate beyond what the papers claim.
+
+- "title": a scroll-stopping headline for the whole push that frames the day's theme with personality and a hook. BANNED: dry openers like "今日"/"每日"/"Today's"/"Daily", and lifeless templates like "X的三/五种方法/解法" or "关于X的研究". Make someone want to tap it. <=30 characters for Chinese, <=60 for English.
+- "intro": ONE lively sentence that sets up why today's picks are worth reading -- voice and framing, not a summary.
 - "highlights": the 1-3 papers most worth reading in depth. For each:
   - "index": its 1-based number from the list above.
-  - "headline": a catchy, curiosity-provoking question or hook (like a tech-blog subheading) capturing the paper's core trick or result, grounded in its TLDR/abstract. Example style: "48GB 显卡 vs. 65B 模型，QLoRA 是怎么做到的？"
-  - "blurb": a 1-2 sentence punchy explanation of how it works and why it matters -- more vivid and concrete than a plain TLDR, but never exaggerated or fabricated.
+  - "headline": a curiosity-gap hook -- a provocative question or bold claim capturing the paper's core trick. Example energy: "48GB 显卡硬扛 65B 模型，QLoRA 是怎么做到的？"
+  - "blurb": 2-3 vivid sentences explaining the actual mechanism AND the punchline result, with concrete numbers, that make me want to click. Grounded strictly in the paper's TLDR/abstract.
 """
 
 

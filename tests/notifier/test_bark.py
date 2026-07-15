@@ -62,14 +62,27 @@ def test_render_markdown_body_renders_highlight_sections_and_roundup():
     assert body.startswith("Read the first one.")
     assert "## 1. Why does it work?" in body
     assert "[Paper 0 (`9.0`)](https://arxiv.org/abs/2026.00000)" in body
-    assert "- Because of X." in body
-    assert "### 其余速览" in body
-    assert "- **2.** [Paper 1](https://arxiv.org/abs/2026.00001) (`8.0`) — TLDR of paper 1." in body
+    assert "Because of X." in body
+    assert "### More picks" in body
+    assert "**2.** [Paper 1](https://arxiv.org/abs/2026.00001) (`8.0`) — TLDR of paper 1." in body
     # highlighted papers are not repeated in the roundup
-    assert "[Paper 0]" not in body.split("其余速览", 1)[1]
-    # numbers in the roundup must never appear as a bare "- N." (Bark's
-    # markdown renderer mis-parses that as a nested ordered list)
-    assert "- 2. " not in body
+    assert "[Paper 0]" not in body.split("More picks", 1)[1]
+    # no markdown list bullets anywhere (Bark mis-renders "- N." as a
+    # nested ordered list, and the user wants a clean bullet-free layout)
+    assert "\n- " not in body
+    assert not body.lstrip().startswith("- ")
+
+
+def test_render_markdown_body_localizes_roundup_label_to_chinese():
+    papers = _make_papers(2)
+    digest = Digest(
+        title="t",
+        intro="",
+        highlights=[Highlight(index=0, headline="钩子", blurb="因为 X。")],
+    )
+    body = render_markdown_body(papers, digest, max_chars=3000, language="Chinese")
+    assert "### 其余速览" in body
+    assert "More picks" not in body
 
 
 def test_render_markdown_body_no_highlights_only_roundup():
@@ -78,9 +91,10 @@ def test_render_markdown_body_no_highlights_only_roundup():
     body = render_markdown_body(papers, digest, max_chars=3000)
 
     assert "## 1." not in body
-    assert "### 其余速览" in body
-    assert "- **1.** [Paper 0]" in body
-    assert "- **2.** [Paper 1]" in body
+    assert "### More picks" in body
+    assert "**1.** [Paper 0]" in body
+    assert "**2.** [Paper 1]" in body
+    assert "\n- " not in body
 
 
 def test_render_markdown_body_collapses_multiline_tldr_in_roundup():
@@ -104,7 +118,7 @@ def test_render_markdown_body_truncates_roundup_before_highlights():
     assert "Intro here." in body
     # the highlight survives even under a tight budget
     assert "## 1. Hook" in body
-    assert "more papers not shown_" in body
+    assert "more not shown_" in body
     assert "[Paper 9]" not in body
 
 
